@@ -1,0 +1,12 @@
+.blessing-panel{position:absolute;top:102px;left:30px;z-index:3;display:grid;gap:5px;min-width:160px;padding:16px 19px;border:1px solid #ffffffa6;border-radius:14px;background:#faf7eae8;backdrop-filter:blur(12px);color:#6c7959;box-shadow:0 6px 24px #26371c0d;pointer-events:none}
+.blessing-panel>span{font-size:9px;letter-spacing:1.6px}.blessing-panel strong{font:36px Georgia,serif;color:#7c7845;line-height:1.15}.blessing-panel small{font-size:9px;color:#92967a}
+.yard-tools{position:absolute;right:26px;bottom:220px;z-index:4;display:flex;flex-wrap:wrap;gap:6px;width:238px;padding:9px;border:1px solid #fff9;border-radius:12px;background:#faf8ede8;backdrop-filter:blur(12px);box-shadow:0 6px 24px #26371c0d}
+.yard-tools button{flex:1;min-width:0;min-height:48px;border:1px solid #dce1cc;border-radius:8px;background:#e7ecd9;color:#586f43;padding:9px;font-size:13px;cursor:pointer}.yard-tools button:disabled{background:#eeeee4;color:#a1a68f;cursor:default}.yard-tools button[aria-pressed=true]{background:#d7e1bf}.yard-tools>span{flex-basis:100%;font-size:10px;text-align:center;color:#8b937c;line-height:1.5;padding:2px}
+@media(max-width:800px),(pointer:coarse) and (max-height:550px){
+ body.playing .game-heading .text-button{position:fixed;top:88px;right:16px;margin:0}
+ .blessing-panel{top:83px;left:16px;min-width:122px;padding:11px 13px;border-radius:12px;gap:3px}.blessing-panel>span{font-size:8px;letter-spacing:1px}.blessing-panel strong{font-size:29px}.blessing-panel small{font-size:8px}
+ .yard-tools{right:15px;bottom:calc(204px + env(safe-area-inset-bottom,0px));width:177px;padding:7px;gap:5px}.yard-tools button{font-size:13px;min-height:50px;padding:8px 4px}.yard-tools>span{font-size:9px}
+ .settings-open .yard-tools{display:none}
+}
+@media(max-width:360px){.yard-tools{width:155px}}
+@media(max-height:550px){.blessing-panel{top:77px;left:16px;padding:9px 12px;gap:2px}.blessing-panel strong{font-size:25px}.yard-tools{top:80px;bottom:auto;right:16px;width:188px}}

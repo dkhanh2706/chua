@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f3e9">
+  <meta name="description" content="Một khoảng sân yên tĩnh. Cùng đi dạo, ngồi thiền và thắp một nén hương với những người thân quen.">
+  <title>Chùa Online — Cùng nhau, an yên.</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 50 50'%3E%3Crect width='50' height='50' rx='14' fill='%23738061'/%3E%3Ctext x='25' y='36' text-anchor='middle' font-size='32'%3E✳%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/immersive.css"><link rel="stylesheet" href="/mobile.css">
+  <link rel="stylesheet" href="/yard.css">
+  <script src="/socket.io/socket.io.js" defer></script>
+  <script src="/world.js" defer></script>
+  <script src="/sweeping.js" defer></script>
+  <script src="/avatar-config.js" defer></script>
+  <script src="/birdsong.js" defer></script>
+  <script src="/audio.js" defer></script>
+  <script type="importmap">{"imports":{"three":"/vendor/three/three.module.js"}}</script><script src="/app.js" type="module"></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Chùa Online, trang đầu"><span class="brand-icon">❋</span><span>chùa online<span class="brand-note">MỘT CHỐN BÌNH YÊN</span></span></a>
+    <div class="top-right"><span class="presence"><i></i><span id="presence-text">Sân chùa đang mở</span></span><span class="top-divider"></span><button id="sound" class="icon-button" aria-label="Bật âm thanh" title="Bật / tắt âm thanh (M)"></button><button id="help" class="icon-button" aria-label="Hướng dẫn" title="Hướng dẫn">?</button></div>
+  </header>
+
+  <main id="welcome" class="creator-home">
+    <div class="creator-heading"><span class="eyebrow">MỘT CHỐN BÌNH YÊN</span><h1>Mang một chút <em>riêng mình.</em></h1><p>Chọn dáng vẻ bạn thích, rồi thong thả ghé vào sân chùa.</p></div>
+    <form id="join-form" class="creator-layout">
+      <section class="avatar-pane" aria-label="Xem và xoay nhân vật 3D">
+        <div id="gender-options" class="gender-options" role="group" aria-label="Chọn nhân vật"><button type="button" data-gender="male" aria-pressed="true">Nam</button><button type="button" data-gender="female" aria-pressed="false">Nữ</button></div>
+        <div id="avatar-stage" class="avatar-stage"><canvas id="preview" width="500" height="500" aria-label="Nhân vật 3D, kéo ngang để xoay 360 độ"></canvas><span class="avatar-stage-label">NGƯỜI BẠN NHỎ CỦA BẠN</span><span class="rotate-hint">↔ Kéo ngang để xoay 360°</span></div>
+        <div class="rotation-controls"><button id="rotate-left" type="button" aria-label="Xoay nhân vật sang trái">↶</button><input id="avatar-rotation" type="range" min="0" max="360" value="0" aria-label="Xoay nhân vật 360 độ"><span id="rotation-value">0°</span><button id="rotate-right" type="button" aria-label="Xoay nhân vật sang phải">↷</button></div>
+        <div class="preview-actions" role="group" aria-label="Xem thử hoạt ảnh"><button type="button" data-preview-action="idle" aria-pressed="true">Đứng</button><button type="button" data-preview-action="walk" aria-pressed="false">Đi</button><button type="button" data-preview-action="sit" aria-pressed="false">Thiền</button><button type="button" data-preview-action="bow" aria-pressed="false">Lạy</button><button type="button" data-preview-action="incense" aria-pressed="false">Hương</button></div>
+      </section>
+      <section class="customization-pane" aria-label="Tùy chỉnh diện mạo">
+        <div class="customization-title"><span>Phối một chút theo ý bạn</span><span>✳</span></div>
+        <div id="part-tabs" class="part-tabs" role="tablist" aria-label="Bộ phận muốn chỉnh"></div>
+        <div id="custom-panel" class="custom-panel" role="tabpanel"></div>
+        <p class="custom-note">Mỗi món một màu riêng. Bạn có thể chọn bất kỳ màu nào.</p>
+        <div class="entry-fields"><div class="section-label"><label for="name">Mình gọi bạn là gì?</label><span id="name-count">0 / 14</span></div><input id="name" name="name" maxlength="28" autocomplete="nickname" placeholder="Tên của bạn" required aria-describedby="join-error">
+        <div id="password-wrap" hidden><label for="password">Mật khẩu sân chùa</label><input id="password" type="password" autocomplete="current-password" placeholder="Mật khẩu chung của nhóm"></div>
+        <p id="join-error" class="form-error" role="alert"></p><button id="join-button" class="primary" type="submit"><span>Ghé vào chùa</span><span aria-hidden="true">↗</span></button><p class="entry-note">Không tài khoản. Không vội vàng.</p></div>
+      </section>
+    </form>
+  </main>
+  <section id="game" hidden aria-label="Sân chùa">
+    <aside class="blessing-panel" aria-label="Điểm phước lành"><span>✧ PHƯỚC LÀNH</span><strong id="blessing-score" role="status" aria-live="polite" aria-atomic="true">0</strong><small>Quét một đám lá · +1 điểm</small></aside>
+    <div class="yard-tools" role="group" aria-label="Thao tác gần bạn" hidden><button id="broom-pickup" hidden disabled><span id="broom-label">Lấy chổi</span></button><button id="sweep-leaves" hidden disabled><span id="sweep-label">Quét lá</span></button><span id="broom-hint"></span></div>
+    <div class="game-heading"><div><span class="eyebrow">BẠN ĐÃ VỀ ĐẾN</span><h2>Sân chùa an nhiên<span>❋</span></h2></div><button id="leave" class="text-button">Rời sân chùa ↗</button></div>
+    <div class="game-layout"><div class="game-stage"><canvas id="canvas" width="1000" height="700" tabindex="0" aria-label="Sân chùa 3D. WASD để đi, kéo để xoay góc nhìn, cuộn để phóng gần, V đổi camera."></canvas><div class="stage-tag"><i></i> KHÔNG GIAN 3D · CÙNG CÓ MẶT</div><div id="location-hint">Chạm vào sân để bước đi</div></div>
+      <aside id="people-panel" class="sidebar"><div class="sidebar-label">DƯỚI CÙNG MỘT MÁI CHÙA<span id="online-count">0/5</span></div><ul id="players"></ul><div class="quiet-note"><span>❋</span><p>Ở đây, không cần nói gì.<br>Sự có mặt của bạn đã đủ.</p></div><div class="incense-note"><span>HƯƠNG TRONG SÂN</span><strong id="incense-count">0 <small>/ 12 nén</small></strong><p>Mỗi nén hương, một chút lòng thành.<br>Hương cháy trong 5 phút.</p></div></aside>
+    </div>
+    <div class="camera-controls" role="group" aria-label="Góc nhìn camera"><button id="camera-first" aria-pressed="true">◉ <span>Mắt nhân vật</span></button><button id="camera-panorama" aria-pressed="false">◈ <span>Toàn cảnh</span></button><button id="camera-follow" aria-pressed="false">◎ <span>Theo chân</span></button><span></span><button id="camera-in" aria-label="Phóng gần">＋</button><button id="camera-out" aria-label="Thu xa">−</button><button id="camera-reset" aria-label="Đặt lại góc nhìn" title="Đặt lại góc nhìn (R)">↺</button></div>
+    <div id="view-options" class="view-options"><button id="mouse-look" aria-pressed="false">Nhìn bằng chuột <kbd>Esc để thoát</kbd></button><button id="gentle-motion" aria-pressed="true">Chuyển động nhẹ</button></div>
+    <button id="battery-saver" class="battery-saver" aria-pressed="true">Tiết kiệm pin</button><span class="gaze-point" aria-hidden="true"></span>
+    <button id="people-toggle" class="people-toggle" aria-expanded="false" aria-controls="people-panel">Cùng có mặt <span id="people-badge">1/5</span></button>
+    <button id="settings-toggle" class="settings-toggle" aria-expanded="false" aria-label="Góc nhìn và tùy chọn">☷</button>
+    <div id="joystick" class="joystick" role="group" aria-label="Cần di chuyển"><span class="joystick-cross">＋</span><span class="joystick-thumb"></span><span class="joystick-caption">DI CHUYỂN</span></div>
+    <span class="look-hint">Vuốt để nhìn quanh</span>
+    <div class="controls"><div class="movement-hint"><span class="key-group"><kbd>W</kbd><span><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span></span><span>Đi dạo trong sân<br><small>hoặc chạm để bước đi</small></span></div><div class="actions"><button id="sit" class="action-button"><span class="action-symbol">♧</span><span id="sit-label">Ngồi thiền</span><kbd>E</kbd></button><button id="bow" class="action-button"><span class="action-symbol">♧</span><span>Cúi lạy</span><kbd>␣</kbd></button><button id="incense" class="action-button" disabled><span class="action-symbol">♨</span><span>Thắp nhang</span><kbd>F</kbd></button></div></div>
+    <p class="game-footer">Không có đích đến. Chỉ có những bước chân bình yên.</p>
+  </section>
+
+  <footer id="welcome-footer"><span>Một nơi nhỏ, dành cho những người thương.</span><span class="footer-flower">✳</span><span>Không chat · Cùng chăm sân · Chỉ an yên</span></footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <dialog id="help-dialog"><button class="dialog-close" data-close="help-dialog" aria-label="Đóng">×</button><span class="eyebrow">MỘT CHÚT CHỈ DẪN</span><h2>Cứ thong thả thôi.</h2><p>Một sân chùa 3D chung cho tối đa 5 người. Đi qua sân, bước lên bậc thềm và vào chính điện.</p><dl><dt>WASD / ↑ ↓ ← →</dt><dd>Đi theo hướng camera. Chạm vào sân để tự đi tới, hoặc kéo cần tròn bên trái trên điện thoại. Ngón còn lại có thể vuốt để nhìn quanh.</dd><dt>Kéo · Cuộn · Chụm hai ngón</dt><dd>Kéo để nhìn quanh. Ở góc nhìn thứ nhất, bạn có thể bật Nhìn bằng chuột; nhấn Esc để trả lại con trỏ. Cuộn hoặc chụm hai ngón để thu phóng.</dd><dt>Tùy chọn trên điện thoại · V / R trên máy tính</dt><dd>Mắt nhân vật là góc nhìn mặc định: ngồi thiền hạ tầm mắt, cúi lạy nhìn xuống, thắp nhang thấy hai tay nâng hương. Nút tùy chọn bên phải mở các góc camera và Tiết kiệm pin. Trên máy tính, V đổi góc nhìn, R nhìn thẳng lại.</dd><dt>E · Ngồi thiền / Space · Cúi lạy</dt><dd>Ngồi yên một chút, hoặc chắp tay cúi đầu. Bước đi để đứng dậy. Bật Chuyển động nhẹ để giảm độ cúi của camera; lựa chọn được ghi nhớ.</dd><dt>F · Thắp nhang</dt><dd>Lại gần lư hương trong chính điện. Mỗi người tối đa 3 nén, cách nhau 10 giây.</dd><dt>M · Âm thanh</dt><dd>Tiếng suối và tiếng chim, nhỏ thôi.</dd><dt>Lấy chổi · Trả chổi · Quét lá</dt><dd>Đến giá chổi gần cổng hoặc bên vườn để lấy chổi. Tới gần đám lá dưới cây rồi quét: mỗi đám lá +1 điểm Phước lành trong lượt ghé chùa. Khi đến gần, nút thao tác tự hiện: chạm Lấy chổi hoặc Quét lá. Đến gần giá để trả chổi.</dd></dl><button class="primary" data-close="help-dialog">Mình hiểu rồi <span>↗</span></button></dialog>
+  <dialog id="connection-dialog"><span class="eyebrow">MỘT CHÚT GIÁN ĐOẠN</span><h2>Mất kết nối với sân chùa.</h2><p>Hãy kiểm tra mạng rồi ghé vào lại nhé.</p><button id="rejoin" class="primary">Vào lại <span>↗</span></button><button id="back-home" class="text-button">Về trang đầu</button></dialog>
+</body>
+</html>
+

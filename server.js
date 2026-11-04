@@ -1,0 +1,127 @@
+const express = require('express');
+const http = require('node:http');
+const path = require('node:path');
+const { randomUUID } = require('node:crypto');
+const { Server } = require('socket.io');
+const { validPosition, URN, WORLD } = require('./public/world');
+const AvatarConfig = require('./public/avatar-config');
+const {BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN}=require('./public/sweeping');
+
+function createTemple(options = {}) {
+  const app = express();
+  const server = http.createServer(app);
+  const io = new Server(server, { maxHttpBufferSize: 4096 });
+  const players = new Map();
+  const incense = new Map();
+  const leafPatches=new Map(LEAF_PATCHES.map(p=>[p.id,{...p,availableAt:0}]));
+  const password = options.password ?? process.env.ROOM_PASSWORD;
+  const now = options.now || Date.now;
+  const ttl = options.incenseTTL || 300000;
+  let dirty = false;
+  const publicPlayer = p => ({ id: p.id, name: p.name, character: p.character, color: p.color, avatar: p.avatar, x: p.x, y: p.y, action: p.action,hasBroom:p.hasBroom,blessings:p.blessings });
+  const publicIncense = i => ({ id: i.id, owner: i.owner, slot: i.slot, ttl: Math.max(0, i.expiresAt - now()) });
+  const publicPatch=p=>({id:p.id,x:p.x,y:p.y,tree:p.tree,readyIn:Math.max(0,p.availableAt-now())});
+  app.disable('x-powered-by');
+  app.get('/api/status', (_, res) => res.json({ online: players.size, capacity: 5, passwordRequired: !!password }));
+  app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three/build')));
+  app.use(express.static(path.join(__dirname, 'public')));
+
+  io.on('connection', socket => {
+    let lastMove = 0;
+    socket.on('join', input => {
+      if (players.has(socket.id)) return;
+      if (!input || typeof input !== 'object' || typeof input.name !== 'string' || !Number.isInteger(input.character) || input.character < 0 || input.character > 1) return socket.emit('join-error', 'bad-input');
+      const name = Array.from(input.name.normalize('NFC').replace(/[\p{C}<>]/gu, '').replace(/\s+/g, ' ').trim()).slice(0, 14).join('');
+      if (!name) return socket.emit('join-error', 'bad-input');
+      if (password && input.password !== password) return socket.emit('join-error', 'bad-password');
+      if (players.size >= 5) return socket.emit('join-error', 'full');
+      const occupied = new Set([...players.values()].map(p => p.spawn));
+      const spawn = [0, 1, 2, 3, 4].find(n => !occupied.has(n));
+      const avatar = AvatarConfig.normalize(input.avatar, input.character, input.color);
+      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand', lastIncense: -Infinity, bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0 };
+      players.set(socket.id, p);
+      socket.join('temple');
+      socket.emit('joined', { id: p.id, players: [...players.values()].map(publicPlayer), incense: [...incense.values()].map(publicIncense),leaves:[...leafPatches.values()].map(publicPatch) });
+      socket.to('temple').emit('player-joined', publicPlayer(p));
+      io.emit('presence', { online: players.size, capacity: 5 });
+      dirty = true;
+    });
+    socket.on('move', input => {
+      const p = players.get(socket.id);
+      const time = now();
+      if (!p || !input || typeof input.x !== 'number' || typeof input.y !== 'number' || !Number.isFinite(input.x) || !Number.isFinite(input.y) || time - lastMove < 35) return;
+      if (p.bowUntil > time || p.sweepUntil > time) return;
+      const x = Math.max(25, Math.min(WORLD.width - 25, input.x));
+      const y = Math.max(125, Math.min(WORLD.height - 35, input.y));
+      if (!validPosition(x, y)) return;
+      const maxDistance = 230 * Math.min((time - (lastMove || time - 50)) / 1000, 1) + 14;
+      if (Math.hypot(x - p.x, y - p.y) > maxDistance) return;
+      lastMove = time;
+      p.x = x; p.y = y; p.action = 'stand'; dirty = true;
+    });
+    socket.on('action', action => {
+      const p = players.get(socket.id);
+      if (!p || !['stand', 'sit', 'bow'].includes(action) || p.bowUntil > now() || p.sweepUntil > now()) return;
+      p.action = action;
+      p.bowUntil = action === 'bow' ? now() + 1500 : 0;
+      dirty = true;
+    });
+    socket.on('plant-incense', () => {
+      const p = players.get(socket.id);
+      if (!p) return;
+      if(p.sweepUntil>now())return;
+      const fail = code => socket.emit('incense-error', code);
+      if (Math.hypot(p.x - URN.x, p.y - URN.y) > 80) return fail('far');
+      if (now() - p.lastIncense < 10000) return fail('cooldown');
+      if ([...incense.values()].filter(i => i.owner === p.id).length >= 3) return fail('limit');
+      if (incense.size >= 12) return fail('full');
+      const slots = new Set([...incense.values()].map(i => i.slot));
+      const item = { id: randomUUID(), owner: p.id, slot: Array.from({ length: 12 }, (_, i) => i).find(i => !slots.has(i)), expiresAt: now() + ttl };
+      incense.set(item.id, item); p.lastIncense = now(); p.action = 'bow'; p.bowUntil = now() + 1500;
+      io.to('temple').emit('incense-added', publicIncense(item)); dirty = true;
+    });
+    socket.on('broom',input=>{
+      const p=players.get(socket.id);if(!p)return;
+      const rack=BROOM_RACKS.find(r=>r.id===input?.rackId);
+      if(typeof input?.take!=='boolean'||!rack||Math.hypot(p.x-rack.x,p.y-rack.y)>PICKUP_RANGE)return socket.emit('sweep-error','rack');
+      if(p.bowUntil>now()||p.sweepUntil>now()||p.action!=='stand')return socket.emit('sweep-error','busy');
+      p.hasBroom=input.take;io.to('temple').emit('broom-changed',{id:p.id,hasBroom:p.hasBroom});
+    });
+    socket.on('sweep',input=>{
+      const p=players.get(socket.id);if(!p)return;
+      const fail=code=>socket.emit('sweep-error',code),time=now();
+      if(!p.hasBroom)return fail('broom');
+      if(p.bowUntil>time||p.sweepUntil>time||p.action!=='stand')return fail('busy');
+      const patch=typeof input?.patchId==='string'?leafPatches.get(input.patchId):null;
+      if(!patch||patch.availableAt>time)return fail('empty');
+      if(Math.hypot(p.x-patch.x,p.y-patch.y)>SWEEP_RANGE)return fail('far');
+      // Consume once before broadcasting: two players cannot score on the same leaves.
+      patch.availableAt=time+LEAF_RESPAWN;p.blessings++;p.sweepUntil=time+SWEEP_DURATION;
+      io.to('temple').emit('swept',{id:p.id,blessings:p.blessings,patch:publicPatch(patch)});
+    });
+    socket.on('disconnect', () => {
+      if (!players.delete(socket.id)) return;
+      io.to('temple').emit('player-left', { id: socket.id });
+      if (!players.size){incense.clear();for(const p of leafPatches.values())p.availableAt=0;}
+      io.emit('presence', { online: players.size, capacity: 5 });
+      dirty = true;
+    });
+  });
+  const stateTimer = setInterval(() => {
+    for (const p of players.values()) if (p.action === 'bow' && now() >= p.bowUntil) { p.action = 'stand'; dirty = true; }
+    if (!dirty) return;
+    // Appearance is sent on joining; moving packets stay small on mobile data.
+    io.to('temple').emit('state', [...players.values()].map(({id,x,y,action}) => ({id,x,y,action}))); dirty = false;
+  }, 50);
+  const incenseTimer = setInterval(() => {
+    for (const [id, i] of incense) if (now() >= i.expiresAt) { incense.delete(id); io.to('temple').emit('incense-removed', { id }); }
+  }, 1000);
+  server.on('close', () => { clearInterval(stateTimer); clearInterval(incenseTimer); });
+  return { app, server, io, players, incense,leafPatches };
+}
+if (require.main === module) {
+  const { server } = createTemple();
+  const port = process.env.PORT || 3000;
+  server.listen(port, '0.0.0.0', () => console.log(`Chùa Online đang mở tại http://localhost:${port}`));
+}
+module.exports = { createTemple };

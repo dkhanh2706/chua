@@ -1,0 +1,54 @@
+# Installed dependencies and local caches
+node_modules/
+.npm/
+.cache/
+
+# Environment variables and local credentials
+.env
+.env.*
+!.env.example
+/.aws/
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Runtime logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Generated test reports, screenshots, coverage and browser sessions
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+playwright/.auth/
+coverage/
+.nyc_output/
+
+# Local editor and agent settings
+/.vscode/
+/.idea/
+/.codex/
+*.code-workspace
+
+# Temporary files and editor backups
+*.tmp
+*.temp
+*.bak
+*.orig
+*.swp
+*.swo
+*~
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Keep source code, tests, package-lock.json, .node-version and render.yaml.
+# public/ contains the actual game assets and must be committed.
