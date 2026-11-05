@@ -34,7 +34,7 @@ import { easeVelocity } from './locomotion.mjs';
     $('sound').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5 6 9H3v6h3l5 4V5Z"/>${muted?'<path d="m16 9 6 6m0-6-6 6"/>':'<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>'}</svg>`;
     $('sound').setAttribute('aria-label',muted?'Bật âm thanh':'Tắt âm thanh');$('sound').setAttribute('aria-pressed',String(!muted));
   }
-  async function toggleSound(){muted=!muted;try{localStorage.setItem('temple-muted',String(muted));}catch{}await sound.start(!muted);soundUI();toast(muted?'Âm thanh đã tắt.':'Lắng nghe tiếng suối và tiếng chim.');}
+  async function toggleSound(){muted=!muted;try{localStorage.setItem('temple-muted',String(muted));}catch{}await sound.start(!muted);soundUI();toast(muted?'Âm thanh đã tắt.':'Nhạc nền nhẹ, tiếng nước chỉ nghe khi ở gần.');}
   soundUI();$('sound').onclick=toggleSound;
   $('name').addEventListener('input',()=>{const chars=Array.from($('name').value);if(chars.length>14)$('name').value=chars.slice(0,14).join('');$('name-count').textContent=`${Array.from($('name').value).length} / 14`;$('join-error').textContent='';});
   function presence(n){$('presence-text').textContent=n?`${n} người đang trong sân`:'Sân chùa đang mở';}
@@ -54,6 +54,7 @@ import { easeVelocity } from './locomotion.mjs';
       leafPatches.clear();for(const patch of data.leaves||[])leafPatches.set(patch.id,{...patch,readyAt:performance.now()+patch.readyIn});
       view.yardCare.setPatches([...leafPatches.values()]);updateYardUI(players.get(myId),performance.now());
       sound.setGardenSources(view.garden.audioSources);
+      sound.setInGame(true);
       $('welcome').hidden=true;$('welcome-footer').hidden=true;$('game').hidden=false;$('connection-dialog').close();$('canvas').focus({preventScroll:true});updatePeople();toast(view.mobile?'Bạn đã về đến. Kéo cần để đi, vuốt để nhìn quanh.':'Bạn đã về đến. Kéo để ngắm cảnh, WASD để bước đi.');
     });
     socket.on('join-error',code=>{setJoining(false);$('join-error').textContent=errorMessages[code]||'Chưa thể vào sân chùa.';if($('connection-dialog').open){$('connection-dialog').close();showHome();$('join-error').textContent=errorMessages[code]||'Chưa thể vào sân chùa.';}});
@@ -92,7 +93,7 @@ import { easeVelocity } from './locomotion.mjs';
     });
     socket.on('hit-error',code=>toast({broom:'Bạn cần cầm chổi trước.',busy:'Đợi hoàn thành động tác nhé.',cooldown:'Chờ một chút trước khi vung tiếp.',direction:'Hãy quay về hướng muốn vung chổi.'}[code]||'Chưa thể vung chổi.'));
     socket.on('incense-error',code=>{incensePending=false;toast({far:'Lại gần lư hương trong chính điện nhé.',busy:'Hoàn thành động tác rồi cắm nén tiếp theo nhé.',limit:'Bạn đang có 3 nén hương. Hãy đợi hương tàn.',full:'Lư hương đã đầy. Hãy đợi một chút nhé.'}[code]||'Chưa thể thắp nhang.');});
-    socket.on('disconnect',reason=>{incensePending=false;sofaPending=false;clearMovement();target=null;if(active){active=false;$('connection-dialog').showModal();}if(joining){setJoining(false);$('join-error').textContent='Kết nối bị gián đoạn. Bạn thử vào lại nhé.';}});
+    socket.on('disconnect',reason=>{sound.setInGame(false);sound.setEnabled(false);incensePending=false;sofaPending=false;clearMovement();target=null;if(active){active=false;$('connection-dialog').showModal();}if(joining){setJoining(false);$('join-error').textContent='Kết nối bị gián đoạn. Bạn thử vào lại nhé.';}});
     socket.on('connect_error',()=>{if(joining){setJoining(false);$('join-error').textContent='Chưa kết nối được với sân chùa. Bạn thử lại nhé.';}});
   }
   function join(){
@@ -105,7 +106,7 @@ import { easeVelocity } from './locomotion.mjs';
     joinTimer=setTimeout(()=>{if(!joining)return;setJoining(false);socket.disconnect();$('join-error').textContent='Kết nối hơi lâu. Bạn thử vào lại nhé.';if($('connection-dialog').open){$('connection-dialog').close();showHome();}},12000);
   }
   $('join-form').onsubmit=e=>{e.preventDefault();join();};
-  function showHome(){active=false;myId=null;players.clear();items.clear();clearMovement();target=null;document.body.classList.remove('playing','people-open','settings-open');$('people-toggle').setAttribute('aria-expanded','false');$('settings-toggle').setAttribute('aria-expanded','false');previewHost.prepend(gameCanvas);view?.setActive(false);$('game').hidden=true;$('welcome').hidden=false;$('welcome-footer').hidden=false;$('connection-dialog').close();setJoining(false);if(socket)socket.disconnect();sound.setEnabled(false);status();}
+  function showHome(){sound.setInGame(false);active=false;myId=null;players.clear();items.clear();clearMovement();target=null;document.body.classList.remove('playing','people-open','settings-open');$('people-toggle').setAttribute('aria-expanded','false');$('settings-toggle').setAttribute('aria-expanded','false');previewHost.prepend(gameCanvas);view?.setActive(false);$('game').hidden=true;$('welcome').hidden=false;$('welcome-footer').hidden=false;$('connection-dialog').close();setJoining(false);if(socket)socket.disconnect();sound.setEnabled(false);status();}
   $('leave').onclick=showHome;$('back-home').onclick=showHome;$('rejoin').onclick=()=>{if(joining)return;join();};
   $('help').onclick=()=>{$('help-dialog').showModal();clearMovement();target=null;};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
   function setCamera(mode){view?.setMode(mode);for(const key of ['overhead','panorama','follow'])$('camera-'+key).setAttribute('aria-pressed',String(mode===key));}

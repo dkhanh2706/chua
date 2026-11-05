@@ -3,6 +3,7 @@ const {test,expect}=require('@playwright/test');
 for(const mobile of [false,true])test(`warm temple interior, fans and indoor incense (${mobile?'mobile':'desktop'})`,async({browser})=>{
   test.setTimeout(45000);
   const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1440,height:1000},isMobile:mobile,hasTouch:mobile}),page=await context.newPage(),errors=[];
+  await context.addInitScript(()=>{for(const i of [0,1])localStorage.setItem(`temple-statue-portrait-${i}`,'old-browser-upload');});
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   try{
     await page.goto('/');await page.locator('#name').fill('Vieng chua');await page.locator('#join-button').click();
@@ -20,6 +21,10 @@ for(const mobile of [false,true])test(`warm temple interior, fans and indoor inc
     const before=await page.evaluate(()=>{const v=window.interiorQA;v.yaw=-.43;v.pitch=.65;return{fan:v.interior.fans[0].rotation.y,ambient:v.daylight.intensity,floor:v.interior.floor.geometry.userData.tileCount,sofas:v.interior.seats.children.filter(o=>o.name==='three-seat-sofa').length,urnY:v.urn.position.y};});
     expect(before.ambient).toBeLessThan(.65);expect(before.floor).toBeGreaterThan(200);expect(before.sofas).toBe(6);expect(before.urnY).toBe(1.2);
     expect(await page.evaluate(()=>window.interiorQA.interior.statues.length)).toBe(2);
+    await expect.poll(()=>page.evaluate(()=>window.interiorQA.interior.statues.map(s=>s.getObjectByName('statue-portrait').visible))).toEqual([true,true]);
+    const portraits=await page.evaluate(()=>window.interiorQA.interior.statues.map(s=>({source:s.getObjectByName('statue-portrait').userData.portraitSource,sculpted:s.getObjectByName('sculpted-face').visible,imageWidth:s.getObjectByName('statue-portrait').material.map.image.width})));
+    expect(portraits.map(p=>p.source)).toEqual(['/picture/hue.jpg','/picture/ngan.jpg']);expect(portraits.every(p=>!p.sculpted&&p.imageWidth>100)).toBe(true);
+    await expect(page.locator('#statue-portraits-open')).toHaveCount(0);await expect(page.locator('#statue-portraits')).toHaveCount(0);
     for(const pitch of [-.4,1.15]){
       await page.evaluate(pitch=>{const v=window.interiorQA;v.pitch=pitch;v.zoom=1.6;v.yaw=Math.PI;},pitch);
       await page.waitForTimeout(250);
@@ -44,23 +49,13 @@ for(const mobile of [false,true])test(`warm temple interior, fans and indoor inc
     if(!mobile){
       await page.evaluate(()=>{window.interiorQA.pitch=.5;window.interiorQA.yaw=-.7;});await page.waitForTimeout(300);await page.screenshot({path:'test-results/interior-ceiling.png'});
       await page.evaluate(()=>{window.interiorQA.pitch=1.05;window.interiorQA.yaw=-1.1;});await page.waitForTimeout(300);await page.screenshot({path:'test-results/interior-floor.png'});
-      await page.locator('#statue-portraits-open').click();
-      const portrait=Buffer.from(await page.evaluate(()=>{
-        const canvas=document.createElement('canvas');canvas.width=32;canvas.height=48;
-        const c=canvas.getContext('2d');c.fillStyle='#c88e75';c.fillRect(0,0,32,48);
-        return canvas.toDataURL('image/png').split(',')[1];
-      }),'base64');
-      await page.locator('#statue-left').setInputFiles({name:'portrait.png',mimeType:'image/png',buffer:portrait});
-      await expect(page.locator('#statue-portraits [role="status"]')).toContainText('Đã lưu');
-      expect(await page.evaluate(()=>window.interiorQA.interior.statues.map(s=>s.getObjectByName('statue-portrait').visible))).toEqual([true,false]);
-      await page.locator('#statue-right').setInputFiles({name:'portrait.png',mimeType:'image/png',buffer:portrait});
-      await expect.poll(()=>page.evaluate(()=>window.interiorQA.interior.statues.map(s=>s.getObjectByName('statue-portrait').visible))).toEqual([true,true]);
-      await page.locator('[data-portrait-reset="0"]').click();
-      expect(await page.evaluate(()=>window.interiorQA.interior.statues.map(s=>s.getObjectByName('statue-portrait').visible))).toEqual([false,true]);
-      await page.reload();await page.locator('#name').fill('Anh tuong');await page.locator('#join-button').click();
-      await page.evaluate(async()=>{const {TempleView}=await import('/scene3d.js');await new Promise(resolve=>{const original=TempleView.prototype.render;TempleView.prototype.render=function(...args){original.apply(this,args);TempleView.prototype.render=original;window.interiorQA=this;resolve();};});});
-      await expect.poll(()=>page.evaluate(()=>window.interiorQA.interior.statues.map(s=>s.getObjectByName('statue-portrait').visible))).toEqual([false,true]);
+
     }
+    await page.evaluate(mobile=>{
+      const v=window.interiorQA,draw=v.renderer.render.bind(v.renderer);
+      v.renderer.render=(scene,camera)=>{if(scene===v.scene){camera.fov=mobile?75:47;camera.updateProjectionMatrix();camera.position.set(0,6.8,mobile?-7:-12.5);camera.lookAt(0,5.5,-23);}draw(scene,camera);};
+    },mobile);
+    await page.waitForTimeout(200);await page.screenshot({path:`test-results/fixed-statue-portraits-${mobile?'mobile':'desktop'}.png`});
     expect(errors).toEqual([]);
   }finally{await context.close();}
 });

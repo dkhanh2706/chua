@@ -1,16 +1,17 @@
 window.TempleSound = class {
-  constructor(){this.ctx=null;this.enabled=false;this.nextBird=0;this.lastWater=0;this.sources=[];this.listener={x:0,y:2,z:0,yaw:0};this.voices=new Set();this.onBird=null;}
+  constructor(){this.ctx=null;this.enabled=false;this.inGame=false;this.nextBird=0;this.lastWater=-Infinity;this.waterTargets={stream:0,waterfall:0};this.sources=[];this.listener={x:0,y:2,z:0,yaw:0};this.voices=new Set();this.onBird=null;}
   async start(enabled=true){
     if(!this.ctx){
       const Audio=window.AudioContext||window.webkitAudioContext;if(!Audio)return;
       this.ctx=new Audio();const c=this.ctx;
       this.master=c.createGain();this.master.gain.value=0;this.master.connect(c.destination);
+      this.music=new TempleAmbientMusic(c,this.master);
       const buffer=c.createBuffer(1,c.sampleRate*4,c.sampleRate),data=buffer.getChannelData(0);
       let brown=0;for(let i=0;i<data.length;i++){brown=(brown+Math.random()*.04-.02)/1.02;data[i]=brown*6;}
       const source=c.createBufferSource();source.buffer=buffer;source.loop=true;
       const filter=c.createBiquadFilter();filter.type='bandpass';filter.frequency.value=850;filter.Q.value=.35;
-      this.water=c.createGain();this.water.gain.value=.18;source.connect(filter);filter.connect(this.water);this.water.connect(this.master);source.start();
-      const lfo=c.createOscillator(),lfoGain=c.createGain();lfo.frequency.value=.28;lfoGain.gain.value=.04;lfo.connect(lfoGain);lfoGain.connect(this.water.gain);lfo.start();
+      this.water=c.createGain();this.water.gain.value=0;source.connect(filter);filter.connect(this.water);this.water.connect(this.master);source.start();
+      const lfo=c.createOscillator(),lfoGain=c.createGain();lfo.frequency.value=.28;lfoGain.gain.value=110;lfo.connect(lfoGain);lfoGain.connect(filter.frequency);lfo.start();
       const sprayBuffer=c.createBuffer(1,c.sampleRate*5,c.sampleRate),sprayData=sprayBuffer.getChannelData(0);
       for(let i=0;i<sprayData.length;i++)sprayData[i]=(Math.random()*2-1)*.6;
       const cascade=c.createBufferSource();cascade.buffer=sprayBuffer;cascade.loop=true;
@@ -24,19 +25,23 @@ window.TempleSound = class {
     try{await this.ctx.resume();}catch{}
     this.setEnabled(enabled);
   }
-  setEnabled(enabled){this.enabled=enabled;if(this.ctx){this.master.gain.cancelScheduledValues(this.ctx.currentTime);this.master.gain.setTargetAtTime(enabled?.32:0,this.ctx.currentTime,enabled?.12:.02);if(!enabled)for(const voice of [...this.voices])voice.cancel();}}
+  setEnabled(enabled){this.enabled=enabled;if(this.ctx){this.master.gain.cancelScheduledValues(this.ctx.currentTime);this.master.gain.setTargetAtTime(enabled?.32:0,this.ctx.currentTime,enabled?.12:.02);if(!enabled)for(const voice of [...this.voices])voice.cancel();}this.syncMusic();}
+  setInGame(active){this.inGame=active;this.syncMusic();if(!active&&this.ctx){this.waterLevel('stream',this.water,0);this.waterLevel('waterfall',this.waterfall,0);this.lastWater=-Infinity;}}
+  syncMusic(){if(this.enabled&&this.inGame)this.music?.start();else this.music?.stop();}
+  waterLevel(name,node,value){
+    if(this.waterTargets[name]===value||value!==0&&Math.abs(this.waterTargets[name]-value)<.002)return;
+    this.waterTargets[name]=value;const t=this.ctx.currentTime,gain=node.gain;
+    const current=gain.value;gain.cancelScheduledValues(t);gain.setValueAtTime(current,t);gain.linearRampToValueAtTime(value,t+.25);
+  }
   setGardenSources(sources){this.sources=Array.isArray(sources)?sources.filter(s=>Number.isFinite(s.position?.x)&&Number.isFinite(s.position?.z)):[];}
   update(time,x,y,yaw=0){
     if(!this.ctx||!this.enabled)return;
     Object.assign(this.listener,{x:(x-500)/10,y:(typeof groundHeight==='function'?groundHeight(x,y):0)+2,z:(y-350)/10,yaw});
     if(time-this.lastWater>.15){
-      this.lastWater=time;const distance=Math.abs(x-riverX(y)),inside=window.insideHall(x,y),muffle=inside?.3:1;
-      this.water.gain.setTargetAtTime((.035+.40*Math.exp(-distance/150))*muffle,this.ctx.currentTime,.4);
-      const dx=31.5-this.listener.x,dz=-32.8-this.listener.z,fallDistance=Math.hypot(dx,dz);
-      this.waterfall.gain.setTargetAtTime(.65*Math.exp(-fallDistance/20)*muffle,this.ctx.currentTime,.4);
-      const fallPan=(dx*Math.cos(yaw)-dz*Math.sin(yaw))/Math.max(1,fallDistance);
-      this.waterfallPan.pan.setTargetAtTime(Math.max(-.85,Math.min(.85,fallPan)),this.ctx.currentTime,.25);
-      this.waterPan.pan.setTargetAtTime(Math.max(-.75,Math.min(.75,(riverX(y)-x)/180*Math.cos(yaw))),this.ctx.currentTime,.25);
+      this.lastWater=time;const levels=TempleWaterAudio.mix(x,y,yaw,window);
+      this.waterLevel('stream',this.water,levels.stream);this.waterLevel('waterfall',this.waterfall,levels.waterfall);
+      this.waterfallPan.pan.setTargetAtTime(levels.fallPan,this.ctx.currentTime,.25);
+      this.waterPan.pan.setTargetAtTime(levels.streamPan,this.ctx.currentTime,.25);
     }
     if(time>this.nextBird){this.nextBird=time+5+Math.random()*7;const index=Math.floor(Math.random()*this.sources.length);this.bird(this.sources[index]);if(this.sources.length>1&&Math.random()<.3)this.bird(this.sources[(index+1)%this.sources.length],.7+Math.random()*.6);}
   }

@@ -25,6 +25,7 @@ function createTemple(options = {}) {
   app.disable('x-powered-by');
   app.get('/api/status', (_, res) => res.json({ online: players.size, capacity: 5, passwordRequired: !!password }));
   app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three/build')));
+  app.use('/picture', express.static(path.join(__dirname, 'picture'), { index: false, dotfiles: 'deny' }));
   app.use(express.static(path.join(__dirname, 'public')));
 
   io.on('connection', socket => {
