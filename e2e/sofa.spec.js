@@ -27,7 +27,7 @@ for(const mobile of [false,true])test(`sofa seating, solid furniture and connect
     await expect.poll(()=>page.evaluate(()=>Math.hypot(window.sofaQA.me.x-450,window.sofaQA.me.y-240)),{timeout:10000}).toBeLessThan(4);
     expect(await page.evaluate(()=>window.sofaQA.me.sofaSeatId)).toBeFalsy();
     await page.evaluate(mobile=>{const v=window.sofaQA.view,draw=v.renderer.render.bind(v.renderer);v.renderer.render=(scene,camera)=>{if(scene===v.scene){for(const roof of v.roofs)roof.traverse(o=>{if(o.material){o.material.opacity=o.isLineSegments?.22:1;o.material.transparent=!!o.isLineSegments;o.material.depthWrite=true;o.material.needsUpdate=true;}});camera.fov=mobile?70:48;camera.updateProjectionMatrix();camera.position.set(32,17,17);camera.lookAt(0,9,-17.5);}draw(scene,camera);};},mobile);
-    expect(await page.evaluate(()=>window.sofaQA.view.roofs[0].getObjectByName('connected-timber-roof-frame').userData.supports.length)).toBe(8);
+    expect(await page.evaluate(()=>window.sofaQA.view.roofs[0].getObjectByName('connected-timber-roof-frame').userData.supports.length)).toBe(22);
     await page.waitForTimeout(250);await page.screenshot({path:`test-results/temple-roof-joints-${mobile?'mobile':'desktop'}.png`});expect(errors).toEqual([]);
   }finally{await context.close();}
 });

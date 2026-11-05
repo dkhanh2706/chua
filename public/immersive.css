@@ -54,3 +54,16 @@ body.playing.mouse-look .game-stage canvas{cursor:none}
  body.playing.first-person .sidebar{width:125px}.first-person .game-heading h2{font-size:21px}
 }
 @media(max-height:550px) and (min-width:600px){.view-options{right:26px;bottom:70px}.camera-controls{bottom:115px}}
+
+.statue-portraits-open{display:none;position:absolute;left:32px;top:310px;z-index:3;border:1px solid #fff9;border-radius:10px;background:#faf8ede8;color:#665136;padding:10px 15px;font:inherit;font-size:12px;cursor:pointer}
+#game:has(#canvas[data-location="hall"]) .statue-portraits-open{display:block}
+#statue-portraits{width:min(540px,calc(100vw - 32px));max-height:85dvh;overflow:auto;box-sizing:border-box}
+.portrait-options{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px}
+.portrait-options>div{display:flex;flex-direction:column;gap:12px;min-width:0}
+.portrait-options label{font-weight:600;color:#665136}
+.portrait-options input{width:100%;font-size:12px;box-sizing:border-box}
+.portrait-options img{width:90px;height:116px;object-fit:cover;border-radius:50%;align-self:center}
+.portrait-options img[hidden]{display:none}
+.portrait-options button{border:1px solid #b7a68c;background:#eee5d5;color:#665136;border-radius:8px;padding:9px;cursor:pointer}
+#statue-portraits [role="status"]{font-size:12px;min-height:1.5em}
+@media(max-width:800px){.statue-portraits-open{left:18px;top:178px;padding:9px 12px;font-size:10px}.portrait-options{grid-template-columns:1fr}}

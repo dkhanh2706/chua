@@ -6,8 +6,19 @@ test('every tree has individual veined leaves and branches, with a bounded mobil
   const {TempleGarden}=await import('../public/garden.mjs'),{Group}=await import('three');
   const garden=new TempleGarden(new Group(),{batterySaver:true});
   assert.equal(garden.trees.length,21);assert.equal(new Set(garden.trees.map(t=>t.species)).size,3);
-  assert.ok(garden.trees.every(t=>t.foliage.isInstancedMesh&&t.foliage.count===320&&t.leaves.length>500));
+  assert.ok(garden.trees.every(t=>t.foliage.isInstancedMesh&&t.foliage.count===720&&t.leaves.length>1300));
   assert.ok(garden.trees.every(t=>t.trunk.isMesh&&t.trunk.geometry.attributes.normal.getX(1)>0));
+  for(const tree of garden.trees){
+    const positions=tree.trunk.geometry.attributes.position;
+    tree.trunk.geometry.computeBoundingBox();
+    assert.ok(tree.trunk.geometry.boundingBox.min.y<-.2,'trunk extends into the ground');
+    for(let row=0;row<=14;row++){
+      let x=0,z=0;for(let side=0;side<16;side++){const i=row*17+side;x+=positions.getX(i);z+=positions.getZ(i);}
+      assert.ok(Math.abs(x/16-tree.x)<.01&&Math.abs(z/16-tree.z)<.01,'trunk stays vertical');
+    }
+    const quadrants=new Set(tree.crowns.map(c=>`${c.position.x>=tree.x}:${c.position.z>=tree.z}`));
+    assert.equal(quadrants.size,4,'crown covers all four directions');
+  }
   assert.ok(garden.branches.count>1000);assert.equal(garden.fallBatches.reduce((sum,b)=>sum+b.mesh.count,0),30);
   for(const g of garden.geometries){assert.ok(g.attributes.uv);for(const n of g.attributes.position.array)assert.ok(Number.isFinite(n));for(const n of g.attributes.normal.array)assert.ok(Number.isFinite(n));}
   garden.setQuality(false);assert.equal(garden.fallBatches.reduce((sum,b)=>sum+b.mesh.count,0),72);assert.ok(garden.trees.every(t=>t.foliage.count===t.leaves.length));

@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import {seededRandom} from './garden-layout.mjs';
 import {GARDEN_BOUNDS} from './garden-boundary.mjs';
+import {streamCenter} from './waterfall-layout.mjs';
 
-export const riverCenter=z=>(784+Math.sin((z*10+350)/130)*36-500)/10;
+export const riverCenter=streamCenter;
 const halfWidth=z=>3.6+Math.exp(-(((z+22)/3.6)**2));
 const BRIDGE_Z=15.5,SPAN=6.6,RIVER_LENGTH=GARDEN_BOUNDS.front+.4+24;
 

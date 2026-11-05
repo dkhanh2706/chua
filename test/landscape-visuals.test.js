@@ -2,6 +2,19 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const world=require('../public/world');
 
+test('terraced waterfall stays above its bed, joins the river and clears every garden tree',async()=>{
+  const {cascadeCenter,cascadeHeight,cascadeHalfWidth,mountainFootprint,rockyHeight,streamCenter,FALL_STATIONS}=await import('../public/waterfall-layout.mjs');
+  const {makeTreeLayout}=await import('../public/garden-layout.mjs');
+  assert.equal(FALL_STATIONS.filter((s,i)=>i&&FALL_STATIONS[i-1][1]-s[1]>5).length,3);
+  let previous=Infinity;
+  for(let z=-60;z<=-22.8;z+=.05){
+    const y=cascadeHeight(z);assert.ok(y<=previous+1e-8);previous=y;
+    for(const side of [-1,0,1])assert.ok(y-rockyHeight(cascadeCenter(z)+side*cascadeHalfWidth(z),z)>.05,'water clears the rock bed');
+  }
+  assert.ok(Math.abs(cascadeCenter(-23)-streamCenter(-23))<1e-8);assert.equal(cascadeHeight(-23),.055);
+  for(const tree of makeTreeLayout())assert.equal(mountainFootprint(tree.x,tree.z,tree.radius+1),false,`${tree.id} clears the mountain`);
+});
+
 test('the enclosure surrounds every tree crown and only opens at the finished entrance and stream portal',async()=>{
   const {Group}=await import('three'),{GardenBoundary,GARDEN_BOUNDS:b}=await import('../public/garden-boundary.mjs'),{TempleGarden}=await import('../public/garden.mjs');
   const boundary=new GardenBoundary(new Group(),{riverX:world.riverX}),garden=new TempleGarden(new Group(),{batterySaver:true});

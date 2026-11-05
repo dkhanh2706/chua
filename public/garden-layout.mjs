@@ -1,4 +1,4 @@
-export const TREE_SPOTS=[[-43,-28],[-28,-29],[-19,-30],[23,-29],[39,-27],[45,-13],[-44,-12],[-23,-2],[-43,1],[44,4],[-46,22],[-23,27],[44,26],[-39,32],[39,35],[-49,-37],[0,-36],[18,-37],[48,-35],[-38,-34],[-48,35]];
+export const TREE_SPOTS=[[-43,-28],[-28,-29],[-19,-35],[-10,-38],[46,-4],[47,-17],[-44,-12],[-23,-2],[-43,1],[44,6],[-46,22],[-23,27],[44,26],[-39,32],[39,35],[-49,-37],[0,-39],[17,-39],[49,16],[-38,-34],[-48,35]];
 export function seededRandom(seed=917){let value=Math.max(1,seed%2147483647);return()=>{value=value*16807%2147483647;return(value-1)/2147483646;};}
 export function makeTreeLayout(){const random=seededRandom(1849);return TREE_SPOTS.map(([x,z],i)=>({id:`tree-${i}`,x,z,species:i%3,height:7.4+random()*2.8,radius:2.8+random()*1.2,seed:Math.floor(random()*100000)+1}));}
 

@@ -160,16 +160,21 @@ test('arched bridge rises smoothly from either bank and blocks walking through t
   }
   assert.equal(validPosition(center,477),false);assert.equal(validPosition(center,533),false);assert.equal(groundHeight(center+67,505),0);
 });
-test('3D hall has an open entrance, solid walls and altar, and raised floor', () => {
+test('circular hall has one open entrance, solid curved walls and a level floor', () => {
+  const {HALL:h,HALL_ENTRY:e,insideHall}=require('../public/world');
+  assert.equal(canWalkBetween(500,e.y+50,500,230),true);
+  for(let i=2;i<=22;i++){
+    const a=i*Math.PI/12,x=h.x+Math.sin(a)*h.radius,y=h.y+Math.cos(a)*h.radius;
+    assert.equal(validPosition(x,y),false,'circular wall blocks walking');
+    assert.equal(canWalkBetween(h.x+Math.sin(a)*(h.radius+15),h.y+Math.cos(a)*(h.radius+15),h.x+Math.sin(a)*(h.radius-15),h.y+Math.cos(a)*(h.radius-15)),false);
+  }
+  assert.equal(canWalkBetween(e.left,e.y+30,e.left,e.y+12),true,'porch stays clear without door leaves');
+  assert.equal(validPosition(e.left-8,e.y),false,'narrower side panel blocks walking');
   assert.equal(validPosition(450,240),true);assert.equal(validPosition(420,240),false);
-  assert.equal(validPosition(308,220),false);
-  assert.equal(validPosition(335,220),true);
-  assert.equal(groundHeight(320,240),1.2);
-  assert.equal(validPosition(500,135),false);
-  assert.equal(validPosition(500,180),false);
-  assert.equal(groundHeight(420,240),1.2);
-  assert.equal(groundHeight(500,400),0);
-  assert.ok(groundHeight(500,280)>0&&groundHeight(500,280)<1.2);
+  assert.equal(insideHall(450,240),true);assert.equal(insideHall(500,e.y+30),false);
+  assert.equal(validPosition(500,135),false);assert.equal(validPosition(500,180),false);
+  assert.equal(groundHeight(420,240),1.2);assert.equal(groundHeight(500,500),0);
+  assert.ok(groundHeight(500,e.y+25)>0&&groundHeight(500,e.y+25)<1.2);
 });
 
 test('sofas and columns block walking; reserved sofa seats synchronise and release safely',async t=>{

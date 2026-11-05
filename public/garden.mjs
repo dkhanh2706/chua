@@ -40,6 +40,24 @@ function barkTexture(){
   const map=new THREE.DataTexture(data,width,height);map.colorSpace=THREE.SRGBColorSpace;map.wrapS=map.wrapT=THREE.RepeatWrapping;map.magFilter=THREE.LinearFilter;map.minFilter=THREE.LinearMipmapLinearFilter;map.generateMipmaps=true;map.needsUpdate=true;return map;
 }
 
+function canopyTexture(){
+  const size=128,data=new Uint8Array(size*size*4),random=seededRandom(7183);
+  for(let i=0;i<data.length;i+=4){data[i]=data[i+1]=data[i+2]=145;data[i+3]=255;}
+  // Small overlapping leaves add dappled detail to the dense inner foliage.
+  for(let leaf=0;leaf<650;leaf++){
+    const cx=random()*size,cy=random()*size,angle=random()*TAU,rx=2+random()*2,ry=3+random()*3;
+    const shade=170+random()*80,cos=Math.cos(angle),sin=Math.sin(angle);
+    for(let y=-7;y<=7;y++)for(let x=-7;x<=7;x++){
+      const u=(x*cos+y*sin)/rx,v=(-x*sin+y*cos)/ry;
+      if(u*u+v*v>1)continue;
+      const i=(((Math.floor(cy+y)+size)%size)*size+(Math.floor(cx+x)+size)%size)*4;
+      const value=shade+(u<0?8:-12)+(Math.abs(u)<.12?12:0);
+      data[i]=data[i+1]=data[i+2]=value;
+    }
+  }
+  const map=new THREE.DataTexture(data,size,size);map.colorSpace=THREE.SRGBColorSpace;map.wrapS=map.wrapT=THREE.RepeatWrapping;map.repeat.set(2,1);map.magFilter=THREE.LinearFilter;map.minFilter=THREE.LinearMipmapLinearFilter;map.generateMipmaps=true;map.needsUpdate=true;return map;
+}
+
 export class TempleGarden{
   constructor(parent,{batterySaver=false,groundHeight=()=>0}={}){
     this.root=new THREE.Group();this.root.name='detailed-garden';parent.add(this.root);this.layout=makeTreeLayout();this.trees=[];this.birds=[];this.audioSources=[];this.fallBatches=[];this.wind={value:0};this.groundHeight=groundHeight;
@@ -60,9 +78,10 @@ export class TempleGarden{
     this.material.customProgramCacheKey=()=> 'garden-leaf-wind-v1';
     this.branchGeometry=new THREE.CylinderGeometry(.72,1,1,9);this.branchMaterial=new THREE.MeshStandardMaterial({map:this.barkMap,roughness:1,color:'#80694d'});
     for(const tree of this.layout)this.buildTree(tree);
-    const crownGeo=new THREE.SphereGeometry(1,16,10),crownPoints=crownGeo.attributes.position;
-    for(let i=0;i<crownPoints.count;i++){const x=crownPoints.getX(i),y=crownPoints.getY(i),z=crownPoints.getZ(i),r=1+.07*Math.sin(x*4+y*3)*Math.cos(z*4-y*2);crownPoints.setXYZ(i,x*r,y*r,z*r);}crownGeo.computeVertexNormals();
-    this.crowns=new THREE.InstancedMesh(crownGeo,new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.95}),this.crownTransforms.length);this.crowns.name='lush-green-tree-crowns';
+    const crownGeo=new THREE.SphereGeometry(1,24,16),crownPoints=crownGeo.attributes.position;
+    for(let i=0;i<crownPoints.count;i++){const x=crownPoints.getX(i),y=crownPoints.getY(i),z=crownPoints.getZ(i),r=1+.06*Math.sin(x*9+y*7)*Math.cos(z*11-y*5);crownPoints.setXYZ(i,x*r,y*r,z*r);}crownGeo.computeVertexNormals();
+    const canopyMap=canopyTexture();
+    this.crowns=new THREE.InstancedMesh(crownGeo,new THREE.MeshStandardMaterial({color:'#ffffff',map:canopyMap,bumpMap:canopyMap,bumpScale:.08,roughness:.98}),this.crownTransforms.length);this.crowns.name='lush-green-tree-crowns';
     this.crownTransforms.forEach((c,i)=>{this.dummy.position.copy(c.position);this.dummy.quaternion.identity();this.dummy.scale.set(c.radius,c.radius*.74,c.radius*.92);this.dummy.updateMatrix();this.crowns.setMatrixAt(i,this.dummy.matrix);this.crowns.setColorAt(i,new THREE.Color(c.color));});
     this.crowns.castShadow=true;this.crowns.receiveShadow=true;this.crowns.computeBoundingSphere();this.root.add(this.crowns);
     this.branches=new THREE.InstancedMesh(this.branchGeometry,this.branchMaterial,this.branchTransforms.length);this.branches.name='bark-and-branches';
@@ -75,26 +94,42 @@ export class TempleGarden{
   }
   buildTree(tree){
     const random=seededRandom(tree.seed),leaves=[],perches=[],h=tree.height,r=tree.radius;
-    const trunkPoint=y=>new THREE.Vector3(tree.x+Math.sin(y/h*2.2)*.28,y,tree.z+Math.sin(y/h*1.5)*.18);
+    const trunkPoint=y=>new THREE.Vector3(tree.x,y,tree.z);
     const trunkPositions=[],trunkUV=[],trunkIndices=[],rows=14,sides=16;
     for(let row=0;row<=rows;row++){
-      const t=row/rows,p=trunkPoint(t*h*.86),radius=.46*(1-t*.77);
+      const t=row/rows,p=trunkPoint(-.28+t*(h*.86+.28)),radius=.46*(1-t*.77)+.16*Math.exp(-t*16);
       for(let j=0;j<=sides;j++){const a=j/sides*TAU,grain=1+Math.sin(a*5+t*3)*.035;trunkPositions.push(p.x+Math.cos(a)*radius*grain,p.y,p.z+Math.sin(a)*radius*grain);trunkUV.push(j/sides*1.3,t*2.1);}
       if(row<rows)for(let j=0;j<sides;j++){const a=row*(sides+1)+j,b=a+sides+1;trunkIndices.push(a,b,a+1,b,b+1,a+1);}
     }
     const trunkGeo=new THREE.BufferGeometry();trunkGeo.setAttribute('position',new THREE.Float32BufferAttribute(trunkPositions,3));trunkGeo.setAttribute('uv',new THREE.Float32BufferAttribute(trunkUV,2));trunkGeo.setIndex(trunkIndices);trunkGeo.computeVertexNormals();
     const trunk=new THREE.Mesh(trunkGeo,this.branchMaterial);trunk.name=tree.id+'-continuous-trunk';trunk.castShadow=true;trunk.receiveShadow=true;this.root.add(trunk);
-    for(let i=0;i<6;i++){const a=i/6*TAU;this.branch(new THREE.Vector3(tree.x+Math.cos(a)*.85,.02,tree.z+Math.sin(a)*.85),trunkPoint(.8),.2,'#e5e3d5');}
+    // Overlapping tiers make a continuous, balanced crown instead of isolated tufts.
+    const crowns=[];
+    for(const [count,spread,level,size] of [[8,.64,.67,.40],[8,.50,.85,.39],[5,.29,1,.34],[3,.05,.82,.43]]){
+      for(let i=0;i<count;i++){
+        const angle=i/count*TAU+level*3+tree.seed*.01;
+        const color=new THREE.Color(PALETTES[tree.species][1]).lerp(new THREE.Color(PALETTES[tree.species][2]),.2+(i%3)*.15);
+        const crown={position:new THREE.Vector3(tree.x+Math.cos(angle)*r*spread,h*level+Math.sin(angle*3)*.1,tree.z+Math.sin(angle)*r*spread),radius:r*size,color};
+        crowns.push(crown);this.crownTransforms.push(crown);
+        // Evenly spaced surface leaves keep texture visible from every direction.
+        for(let j=0;j<32;j++){
+          const y=1-2*(j+.5)/32,angle=j*2.399963+tree.seed,radial=Math.sqrt(1-y*y);
+          const normal=new THREE.Vector3(Math.cos(angle)*radial,y,Math.sin(angle)*radial);
+          const base=crown.position.clone().add(new THREE.Vector3(normal.x,normal.y*.74,normal.z*.92).multiplyScalar(crown.radius*.98));
+          const direction=normal.clone().add(new THREE.Vector3(0,.5,0)).normalize();
+          const quaternion=new THREE.Quaternion().setFromUnitVectors(UP,direction);quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(UP,random()*TAU));
+          leaves.push({base,quaternion,size:.58+random()*.28,color:PALETTES[tree.species][(j+i)%4]});
+        }
+      }
+    }
     const primary=8;
     for(let i=0;i<primary;i++){
-      const angle=i/primary*TAU+random()*.5,level=.56+random()*.28;
+      const angle=i/primary*TAU+tree.seed*.01,level=.59+(i%3)*.065;
       const start=trunkPoint(h*(.37+random()*.25));
       const end=new THREE.Vector3(tree.x+Math.cos(angle)*r*.57,h*level+.6,tree.z+Math.sin(angle)*r*.57);this.branch(start,end,.15,'#f0e7d5');perches.push(start.clone().lerp(end,.72));
-      this.crownTransforms.push({position:end.clone().add(new THREE.Vector3(0,.55,0)),radius:r*.32,color:PALETTES[tree.species][i%3]});
       for(let j=0;j<4;j++){
-        const a=angle+(j-1.5)*.43,reach=r*(.32+random()*.2);
+        const a=angle+(j-1.5)*.43,reach=r*(.24+random()*.12);
         const tip=end.clone().add(new THREE.Vector3(Math.cos(a)*reach,.8+random()*.9,Math.sin(a)*reach));this.branch(end,tip,.065,'#ebdfca');
-        if(j%2===0)this.crownTransforms.push({position:end.clone().lerp(tip,.68),radius:r*.30,color:PALETTES[tree.species][1+j]});
         for(let k=0;k<3;k++){
           const b=a+(k-1)*.63,origin=end.clone().lerp(tip,.45+k*.24);
           const twig=origin.clone().add(new THREE.Vector3(Math.cos(b)*.8,tree.species===2?-.55:.32+random()*.4,Math.sin(b)*.8));this.branch(origin,twig,.025,'#d9c8a7');
@@ -113,7 +148,7 @@ export class TempleGarden{
     leaves.forEach((leaf,i)=>{this.dummy.position.copy(leaf.base);this.dummy.quaternion.copy(leaf.quaternion);this.dummy.scale.setScalar(leaf.size);this.dummy.updateMatrix();foliage.setMatrixAt(i,this.dummy.matrix);foliage.setColorAt(i,this.color.set(leaf.color));});
     foliage.castShadow=true;foliage.receiveShadow=true;foliage.computeBoundingSphere();foliage.boundingSphere.radius+=.2;this.root.add(foliage);
     const perch=perches[tree.seed%perches.length].clone();perch.y+=.2;
-    this.trees.push({...tree,foliage,leaves,perch,trunk});
+    this.trees.push({...tree,foliage,leaves,perch,trunk,crowns});
   }
   buildFallingLeaves(){
     const random=seededRandom(81721);
@@ -144,7 +179,7 @@ export class TempleGarden{
     }
   }
   sing(id,time,duration=1.4){const bird=this.birds.find(b=>b.source.id===id);if(bird){bird.singStart=time;bird.singUntil=time+duration;}}
-  setQuality(batterySaver){this.batterySaver=batterySaver;for(const tree of this.trees)tree.foliage.count=Math.min(tree.leaves.length,batterySaver?320:620);for(const batch of this.fallBatches)batch.mesh.count=batterySaver?10:24;}
+  setQuality(batterySaver){this.batterySaver=batterySaver;for(const tree of this.trees)tree.foliage.count=batterySaver?Math.min(tree.leaves.length,720):tree.leaves.length;for(const batch of this.fallBatches)batch.mesh.count=batterySaver?10:24;}
   update(time){
     this.wind.value=time;
     for(const batch of this.fallBatches){for(let i=0;i<batch.mesh.count;i++){

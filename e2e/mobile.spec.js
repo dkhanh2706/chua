@@ -8,6 +8,23 @@ test('phone mode supports five avatars and reachable broom controls without heav
   try{
     await page.goto('/');await page.locator('#name').fill('Dien thoai');await page.locator('#join-button').tap();
     await page.evaluate(async()=>{const{TempleView}=await import('/scene3d.js');await new Promise(resolve=>{const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){render.apply(this,args);TempleView.prototype.render=render;window.mobileQA=this;resolve();};});});
+    const score=await page.locator('#blessing-score').boundingBox();
+    await page.touchscreen.tap(score.x+5,score.y+5);await page.touchscreen.tap(score.x+5,score.y+5);
+    const gestures=await page.evaluate(()=>{
+      const panel=document.querySelector('.blessing-panel'),style=getComputedStyle(document.body);
+      return{scale:visualViewport.scale,scrollX,scrollY,select:style.userSelect,touch:style.touchAction,
+        menuBlocked:!panel.dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))};
+    });
+    expect(gestures).toEqual({scale:1,scrollX:0,scrollY:0,select:'none',touch:'none',menuBlocked:true});
+    await page.evaluate(()=>{window.settingsClicks=0;document.getElementById('settings-toggle').addEventListener('click',()=>window.settingsClicks++);});
+    await page.locator('#settings-toggle').tap();await page.locator('#settings-toggle').tap();
+    await expect(page.locator('#settings-toggle')).toHaveAttribute('aria-expanded','false');
+    expect(await page.evaluate(()=>window.settingsClicks)).toBe(2);
+    const labels=await page.evaluate(()=>{
+      const label=document.getElementById('sit-label');
+      return{select:getComputedStyle(label).webkitUserSelect,selectionBlocked:!label.dispatchEvent(new Event('selectstart',{bubbles:true,cancelable:true})),doubleBlocked:!label.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,cancelable:true})),scale:visualViewport.scale};
+    });
+    expect(labels).toEqual({select:'none',selectionBlocked:true,doubleBlocked:true,scale:1});
     for(let i=0;i<4;i++){
       const s=io('http://127.0.0.1:3001',{transports:['websocket'],forceNew:true});clients.push(s);
       await new Promise((resolve,reject)=>{s.on('connect',()=>s.emit('join',{name:`Ban ${i}`,character:i%2}));s.once('joined',resolve);s.once('connect_error',reject);});

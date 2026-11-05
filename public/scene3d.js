@@ -3,13 +3,15 @@ import { createAvatar,poseAvatar,disposeAvatar } from './avatar-model.mjs';
 import { AvatarStudio } from './avatar-studio.mjs';
 import { TempleGarden } from './garden.mjs';
 import { GardenLandscape } from './landscape.mjs';
-import { buildTempleInterior } from './temple-interior.mjs';
+import { buildTempleInterior,HALL_CEILING } from './temple-interior.mjs';
 import { YardCare } from './yard-care.mjs';
 import { LotusPond } from './lotus-pond.mjs';
 import {RIGHT_HAND,broomStrike,applyRightHandStrike} from './broom-motion.mjs';
 import {IncenseSmoke} from './incense-smoke.mjs';
 import {GardenBoundary} from './garden-boundary.mjs';
 import {buildRoofFrame} from './roof-frame.mjs';
+import {buildCircularRoofs} from './circular-temple.mjs';
+import {constrainHallCamera} from './hall-camera.mjs';
 
 const { WORLD, URN, riverX, groundHeight } = window;
 const TAU=Math.PI*2;
@@ -84,10 +86,10 @@ export class TempleView {
     this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});this.renderer.setPixelRatio(this.pixelRatioForViewport());this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.autoUpdate=!this.mobile;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;
     if(typeof ResizeObserver!=='undefined'){this.resizeObserver=new ResizeObserver(([entry])=>{this.canvasSize=entry.contentRect;});this.resizeObserver.observe(canvas);}
     this.studio=new AvatarStudio(this.renderer);
-    this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#d7e2d1');this.scene.fog=new THREE.Fog('#d7e2d1',95,210);
+    this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#a4afa1');this.scene.fog=new THREE.Fog('#a4afa1',95,210);
     this.camera=new THREE.PerspectiveCamera(47,1,.2,350);this.camera.position.set(0,66,68);this.camera.lookAt(this.look);
     this.scene.add(this.camera);
-    this.daylight=new THREE.HemisphereLight('#fff5df','#778762',2.5);this.scene.add(this.daylight);const sun=new THREE.DirectionalLight('#ffdfac',3.1);sun.position.set(-35,65,25);sun.castShadow=true;sun.shadow.mapSize.set(this.mobile?1024:2048,this.mobile?1024:2048);sun.shadow.camera.left=-65;sun.shadow.camera.right=65;sun.shadow.camera.top=65;sun.shadow.camera.bottom=-65;sun.shadow.normalBias=.06;sun.shadow.bias=-.0003;sun.shadow.camera.far=150;this.sunlight=sun;this.scene.add(sun);this.scene.add(sun.target);
+    this.daylight=new THREE.HemisphereLight('#ffe8c7','#65745c',1.8);this.scene.add(this.daylight);const sun=new THREE.DirectionalLight('#ffd29b',2.2);sun.position.set(-35,65,25);sun.castShadow=true;sun.shadow.mapSize.set(this.mobile?1024:2048,this.mobile?1024:2048);sun.shadow.camera.left=-65;sun.shadow.camera.right=65;sun.shadow.camera.top=65;sun.shadow.camera.bottom=-65;sun.shadow.normalBias=.06;sun.shadow.bias=-.0003;sun.shadow.camera.far=150;this.sunlight=sun;this.scene.add(sun);this.scene.add(sun.target);
     this.worldRoot=group(this.scene);this.worldBuilt=false;this.canvas.dataset.renderer='webgl';this.canvas.dataset.cameraMode=this.mode;this.canvas.dataset.qualityMode=this.quality;
     canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();this.ready=false;canvas.dispatchEvent(new CustomEvent('render-error'));});
     canvas.addEventListener('webglcontextrestored',()=>{this.ready=true;this.studio.dirty=true;this.width=0;});
@@ -131,14 +133,8 @@ export class TempleView {
   buildTemple(){
     const s=this.worldRoot;
     this.interior=buildTempleInterior(s);
-    const upper=group(s);
-    box(upper,0,13.2,-17.5,23,5,12,'#a88b65');
-    for(const x of [-10,-6,6,10])for(const z of [-11.4,-23.6])box(upper,x,13.2,z,.3,4.7,.35,'#67432d');
-    const mainRoof=roof(s,0,-17.5,45,28,10.4,5,'#506e5e'),upperRoof=roof(s,0,-17.5,29,18,15.9,4,'#52745f');
-    buildRoofFrame(mainRoof,{width:45,depth:28,base:10.4,height:5,columnTop:10.07,columns:window.HALL_COLUMNS.map(c=>({x:(c.x-500)/10,z:(c.y-350)/10+17.5})),plateWidth:38.8});
-    buildRoofFrame(upperRoof,{width:29,depth:18,base:15.9,height:4,columnTop:15.55,columns:[-10,-6,6,10].flatMap(x=>[-6.1,6.1].map(z=>({x,z}))),plateWidth:23});
-    this.roofs.push(mainRoof,upper,upperRoof,this.interior.ceiling);
-    this.roofs.forEach(g=>g.traverse(o=>{if(o.material){o.material=o.material.clone();o.userData.roof=true;}}));
+    this.roofs.push(...buildCircularRoofs(s),this.interior.ceiling);
+    this.roofs.forEach(g=>g.traverse(o=>{if(o.material){o.material=o.material.clone();o.userData.roof=true;o.userData.roofOpacity=o.material.opacity;}}));
   }
   buildUrn(){
     const p=position(URN.x,URN.y),g=group(this.worldRoot,p.x,p.y,p.z);this.urn=g;
@@ -235,9 +231,12 @@ export class TempleView {
     if(close)desired.y+=Math.max(0,.35-this.pitch)*8;
     if(this.cameraNeedsSnap){this.look.copy(desired);this.camera.position.copy(cameraTarget);this.cameraNeedsSnap=false;}
     else{this.look.lerp(desired,1-Math.exp(-dt*8));this.camera.position.lerp(cameraTarget,1-Math.exp(-dt*8));}
+    const inside=!!me&&window.insideHall(me.x,me.y);
+    if(inside&&close)constrainHallCamera(this.look,this.camera.position,window.HALL,window.HALL_ENTRY);
     this.camera.lookAt(this.look);
-    const inside=!!me&&me.y<265&&me.x>312&&me.x<688,fadeRoof=inside;const opacity=fadeRoof?.025:1;
-    this.roofs.forEach(g=>g.traverse(o=>{if(o.material){const transparent=o.isSprite||fadeRoof||o.material.opacity<.99;if(o.material.transparent!==transparent){o.material.transparent=transparent;o.material.needsUpdate=true;}o.material.opacity=THREE.MathUtils.damp(o.material.opacity,opacity,9,dt);o.material.depthWrite=!fadeRoof;o.castShadow=!fadeRoof;if(o.isSprite)o.visible=!fadeRoof;}}));
+    // Cut away the roof only when viewing the hall from above its ceiling.
+    const fadeRoof=inside&&this.camera.position.y>HALL_CEILING+.25;
+    this.roofs.forEach(g=>g.traverse(o=>{if(o.material){const baseOpacity=o.userData.roofOpacity,transparent=o.isSprite||fadeRoof||baseOpacity<.99||o.material.opacity<.99;if(o.material.transparent!==transparent){o.material.transparent=transparent;o.material.needsUpdate=true;}o.material.opacity=THREE.MathUtils.damp(o.material.opacity,baseOpacity*(fadeRoof?.025:1),9,dt);o.material.depthWrite=!fadeRoof;o.castShadow=!fadeRoof;if(o.isSprite)o.visible=!fadeRoof;}}));
     // Keep the local player visible when the gate falls between them and camera.
     const gateOccludes=!!me&&me.y>535&&Math.cos(this.yaw)>.15;
     this.gateRoof.traverse(o=>{if(o.material){o.material.opacity=THREE.MathUtils.damp(o.material.opacity,gateOccludes?.1:1,10,dt);const transparent=gateOccludes||o.material.opacity<.99;if(o.material.transparent!==transparent){o.material.transparent=transparent;o.material.needsUpdate=true;}o.material.depthWrite=!gateOccludes;o.castShadow=!gateOccludes;}});
@@ -245,9 +244,9 @@ export class TempleView {
     // ── Animate thác nước ────────────────────────────────────────────────
     this.interior.update(time);
     const sheltered=inside;
-    this.daylight.intensity=THREE.MathUtils.damp(this.daylight.intensity,sheltered?.48:2.5,3,dt);
-    this.sunlight.intensity=THREE.MathUtils.damp(this.sunlight.intensity,sheltered?.55:3.1,3,dt);
-    this.renderer.toneMappingExposure=THREE.MathUtils.damp(this.renderer.toneMappingExposure,sheltered?.92:1.12,3,dt);
+    this.daylight.intensity=THREE.MathUtils.damp(this.daylight.intensity,sheltered?.48:1.8,3,dt);
+    this.sunlight.intensity=THREE.MathUtils.damp(this.sunlight.intensity,sheltered?.55:2.2,3,dt);
+    this.renderer.toneMappingExposure=THREE.MathUtils.damp(this.renderer.toneMappingExposure,sheltered?.92:1.02,3,dt);
     this.landscape.update(time);
     this.pond.update(time);
     this.garden.update(time);

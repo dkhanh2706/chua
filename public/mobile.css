@@ -6,6 +6,12 @@
 #view-options{display:none!important}
 
 /* Touch-first character studio and game controls. */
+html:has(body.playing){overflow:hidden;overscroll-behavior:none}
+body.playing{inset:0;margin:0;touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+body.playing #game,body.playing #game *,body.playing .topbar,body.playing .topbar *,body.playing #toast{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+body.playing button,body.playing a{touch-action:manipulation}
+body.playing dialog{touch-action:pan-y;overscroll-behavior:contain}
+body.playing dialog input,body.playing dialog textarea{touch-action:manipulation;-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 .creator-home{display:block;max-width:1110px;padding:0 35px;margin:18px auto 50px}
 .creator-heading{margin-bottom:27px}.creator-heading h1{font-size:36px;letter-spacing:-1px;margin:10px 0}.creator-heading p{color:#8b9581;font-size:12px;margin:0}
 .creator-layout{display:grid;grid-template-columns:1fr 1.07fr;gap:45px;align-items:start}

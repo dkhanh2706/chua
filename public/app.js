@@ -177,6 +177,31 @@ import { easeVelocity } from './locomotion.mjs';
   gameCanvas.addEventListener('pointerup',e=>{pointers.delete(e.pointerId);const tap=gesture&&!gesture.moved&&!pointers.size;gesture=null;if(tap)walkTo(e.clientX,e.clientY);});
   gameCanvas.addEventListener('wheel',e=>{if(!active)return;e.preventDefault();view.zoomBy(Math.exp(e.deltaY*.001));},{passive:false});
   gameCanvas.addEventListener('contextmenu',e=>e.preventDefault());
+  // Keep native page gestures out of the game; dialogs retain scrolling and inputs.
+  const inGameSurface=e=>active&&!e.target?.closest?.('dialog[open],input,textarea,select');
+  for(const type of ['contextmenu','selectstart','dblclick'])document.addEventListener(type,e=>{if(inGameSurface(e))e.preventDefault();},{capture:true});
+  // Older touch browsers may still zoom on the second tap despite touch-action.
+  // Cancel that native gesture and deliver the button's second click ourselves.
+  let touchTap=null,lastTouchTap=null;
+  document.addEventListener('touchstart',e=>{
+    if(!view?.mobile||!inGameSurface(e)||e.touches.length!==1){touchTap=null;lastTouchTap=null;return;}
+    const t=e.touches[0];touchTap={x:t.clientX,y:t.clientY,time:performance.now()};
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    const t=e.touches[0];
+    if(!t||e.touches.length!==1||touchTap&&Math.hypot(t.clientX-touchTap.x,t.clientY-touchTap.y)>8){touchTap=null;lastTouchTap=null;}
+    if(view?.mobile&&inGameSurface(e)&&e.cancelable)e.preventDefault();
+  },{passive:false});
+  document.addEventListener('touchend',e=>{
+    const tap=touchTap;touchTap=null;
+    if(!tap||!inGameSurface(e)||e.touches.length||performance.now()-tap.time>450){lastTouchTap=null;return;}
+    const control=e.target?.closest?.('button,a'),target=control||e.target,now=performance.now();
+    if(lastTouchTap&&lastTouchTap.target===target&&now-lastTouchTap.time<320&&Math.hypot(tap.x-lastTouchTap.x,tap.y-lastTouchTap.y)<28&&e.cancelable){
+      e.preventDefault();control?.click();lastTouchTap=null;
+    }else lastTouchTap={...tap,target,time:now};
+  },{passive:false});
+  document.addEventListener('touchcancel',()=>{touchTap=null;lastTouchTap=null;},{passive:true});
+  for(const type of ['gesturestart','gesturechange'])document.addEventListener(type,e=>{if(inGameSurface(e))e.preventDefault();},{passive:false});
   function walkTo(clientX,clientY){
     if(!active||performance.now()<localBowUntil)return;const hit=view.pick(clientX,clientY);if(!hit)return;
     let {x,y}=hit,sofaSeat=null;
