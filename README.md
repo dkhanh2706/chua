@@ -24,14 +24,14 @@ Bạn bè cùng Wi-Fi có thể mở `http://<IP-máy-chạy-server>:3000`. Nế
 - Chỉnh riêng **áo, quần, giày, tóc**; có đầu trọc, tóc ngắn, rẽ ngôi, bob, đuôi ngựa, hai bím và tóc dài. Bật/tắt **dây chuyền**; nhân vật nữ có thêm **nơ / kẹp tóc**.
 - Mỗi món có màu riêng: áo, quần, giày, đế/dây giày thể thao, tóc, dây buộc tóc, dây chuyền, nơ/kẹp và da. Dùng bảng màu nhanh, ô chọn màu hoặc nhập mã HEX bất kỳ. Tùy chỉnh của nam/nữ được ghi nhớ riêng trên trình duyệt, và gửi cho những người chơi cùng khi bạn vào sân.
 - Nhập tên rồi bấm **Ghé vào chùa**.
-- **Trên điện thoại (thiết bị chơi chính):** giữ và kéo cần tròn bên trái để đi, vuốt lên cảnh bằng ngón còn lại để nhìn quanh. Thả cần hoặc xoay màn hình sẽ dừng di chuyển. Các nút **Ngồi thiền, Cúi lạy, Thắp nhang** ở cuối màn hình; nút **Var nhau** lớn ở phía phải khi cầm chổi. Nút tùy chọn bên phải mở camera và **Tiết kiệm pin**; nút **↗** phía trên sao chép link mời bạn. Giao diện hỗ trợ màn hình dọc, ngang và vùng an toàn quanh tai thỏ.
+- **Trên điện thoại (thiết bị chơi chính):** giữ và kéo cần tròn bên trái để đi, vuốt lên cảnh bằng ngón còn lại để nhìn quanh. Thả cần hoặc xoay màn hình sẽ dừng di chuyển. Các nút **Ngồi thiền, Cúi lạy, Thắp nhang** ở cuối màn hình; nút **Var nhau** lớn ở phía phải khi cầm chổi. Nút tùy chọn bên phải mở camera và **Đẹp & mượt / Rất nét**; nút **↗** phía trên sao chép link mời bạn. Giao diện hỗ trợ màn hình dọc, ngang và vùng an toàn quanh tai thỏ.
 - **WASD / mũi tên:** đi theo hướng camera. **Chạm / bấm lên sân:** tự đi tới điểm đã chọn, tìm đường vòng hồ và qua cầu.
 - **Qua cầu trên điện thoại:** dùng cần di chuyển để đi lên cầu cong mặt gỗ; tầm mắt tự nâng lên và hạ xuống theo mặt cầu. Lan can hai bên giữ lối đi. Bờ sông có đá xen cỏ thủy sinh, nước gợn và chảy từ thác ra ngoài khuôn viên.
 - **Kéo chuột / kéo một ngón:** xoay góc nhìn. **Cuộn chuột / chụm hai ngón:** phóng gần / thu xa. Có các nút `+`, `−` trên màn hình.
 - **V:** đổi lần lượt **Trên đầu → Toàn cảnh → Theo chân**. **R:** nhìn thẳng và đặt lại thu phóng.
 - Đi lên các bậc thềm để vào chính điện. Mái chùa và mái cổng mờ khi che nhân vật để nhìn rõ toàn thân.
-- **E:** ngồi thiền / đứng dậy. Bước đi cũng tự đứng dậy.
-- **Hồ sen:** mặt nước xanh lam trong có gợn sáng, vòng sóng lan và 8 cá koi bơi lượn. Ba lá sen nằm trọn trong hồ, tạo thành tam giác đều và có đá bước nối từ bờ; chạm vào một lá để tự đi tới và ngồi thiền. Có thể dùng WASD / cần di chuyển để bước lên lá rồi bấm **E / Ngồi thiền**. Lá sen và người ngồi nhấp nhô nhẹ cùng nhau.
+- **E:** ngồi thiền / đứng dậy. Nhân vật giữ hướng đang quay khi ngồi, kể cả trên lá sen. Bước đi cũng tự đứng dậy.
+- **Hồ sen:** nước xanh ngọc trong, chuyển màu theo độ sâu, có ánh trời và gợn sáng nhẹ. Tám cá koi có hoa văn màu, vây trong và đuôi xòe chuyển động mềm. Ba lá sen nằm trọn trong hồ, tạo thành tam giác đều và có đá bước nối từ bờ; chạm vào một lá để tự đi tới và ngồi thiền. Có thể dùng WASD / cần di chuyển để bước lên lá rồi bấm **E / Ngồi thiền**. Lá sen và người ngồi nhấp nhô nhẹ cùng nhau.
 - **Space:** cúi lạy trong 1,5 giây.
 - **F:** thắp nhang khi trong vòng 80 px quanh lư hương. Có 12 ô, mỗi người tối đa 3 nén, cháy trong 5 phút. Cắm từng nén: hoàn thành động tác khoảng 1,5 giây là có thể bấm cắm nén tiếp theo ngay. Bấm dồn hoặc giữ phím không tạo thêm nén trong lúc đang dâng hương.
 - **M:** bật / tắt âm thanh. Trình duyệt nhớ lựa chọn này.
@@ -47,11 +47,13 @@ Thiết kế nhân vật áp dụng phong cách chibi và tinh thần hoạt ả
 
 Nhân vật thở nhẹ, chớp mắt cách nhau 3–6 giây, giữ hướng cuối khi dừng. Chu kỳ bước chân được tính từ quãng đường thực tế, gồm vị trí đã nội suy của người chơi khác. Tăng/giảm tốc khoảng 0,1 giây; đứng dậy trước khi đi mất khoảng 0,5 giây. Lạy có chuẩn bị–cúi–giữ–trở lại; dâng hương có nâng tay và đưa hương về phía trước. Tiếng bước chân nhẹ thay đổi theo nền cỏ, sân đá hoặc cầu gỗ và tuân theo nút tắt âm chung.
 
-Màn tạo nhân vật và sân chùa dùng chung một ngữ cảnh WebGL; sân chỉ được dựng khi vào chơi. Bản xem nhân vật chạy tối đa 24 khung hình/giây để thể hiện nhịp thở, chớp mắt và xem thử động tác; dừng vẽ khi trang bị ẩn.
+Màn tạo nhân vật và sân chùa dùng chung một ngữ cảnh WebGL; sân chỉ được dựng khi vào chơi. Bản xem nhân vật và cảnh chơi đều vẽ theo nhịp làm tươi của trình duyệt, thể hiện nhịp thở, chớp mắt và động tác mượt hơn; dừng vẽ khi trang bị ẩn.
 
-**Tiết kiệm pin** bật mặc định trên thiết bị cảm ứng: nhịp vẽ mục tiêu 30 khung hình/giây, mật độ pixel tối đa 1.2 (giảm còn 1.0 khi trình duyệt báo bộ nhớ thiết bị không quá 4 GB) và tắt bóng đổ. Điện thoại dùng WebGL không khử răng cưa đa mẫu; các lớp làm mờ giao diện được bỏ để giảm tải khi vừa đi vừa xoay camera. Kích thước canvas và cần di chuyển được ghi nhớ thay vì đo lại ở mỗi khung hình hoặc mỗi lần kéo. Khói tối đa 12 nén nhang dùng chung một lượt vẽ, với 36 cụm khói ở chế độ tiết kiệm và 60 cụm ở chất lượng cao. Logic di chuyển và gửi trạng thái mạng vẫn hoạt động độc lập. Có thể đổi chất lượng trong nút tùy chọn; lựa chọn được ghi nhớ. Gói tin di chuyển chỉ gửi vị trí/hành động, không lặp lại toàn bộ ngoại hình mỗi lần.
+**Đẹp & mượt** là mặc định trên điện thoại, với mục tiêu **60 FPS**, khử răng cưa và bóng mềm. Mức **Rất nét** tăng độ phân giải và chi tiết cây. Mật độ pixel tối đa tương ứng 1,5 / 1,8, có giới hạn tổng số pixel để tránh quá tải ở màn hình lớn. Bóng đổ tập trung quanh nhân vật, được tái sử dụng giữa các lần cập nhật; bóng tiếp xúc dưới chân vẫn đi theo nhân vật. Khói tối đa 12 nén nhang dùng chung một lượt vẽ và giữ đầy đủ 60 cụm khói. Kích thước canvas và cần di chuyển được ghi nhớ; các lớp làm mờ giao diện được giảm để bớt công việc lặp lại khi vừa đi vừa nhìn. Không tự áp chế độ tiết kiệm pin hoặc giới hạn chơi ở 30 FPS. Lựa chọn chất lượng được ghi nhớ. Logic di chuyển và gửi trạng thái mạng hoạt động độc lập.
 
-Khuôn viên có **21 cây** với thân cong liền, vân vỏ, rễ, cành lớn/cành nhỏ và từng lá có gân. Có ba dáng lá: lá rộng, lá xẻ và lá thuôn. Lá được gắn dọc theo các nhánh; đầu lá lay nhẹ theo gió. Lá rơi xuất phát từ tán cây, lắc và xoay khi rơi, nằm trên mặt đất rồi mờ dần để tái sử dụng. Chế độ tiết kiệm pin giữ khoảng 6.720 lá trên cây và 30 lá rơi; chất lượng cao có khoảng 12.096 lá và 72 lá rơi. Các lá dùng chung hình học/vật liệu và vẽ theo nhóm để giảm tải điện thoại.
+Khuôn viên có **21 cây xanh** với thân cong, vân vỏ, rễ, cành và lá có gân. Tán đầy nhiều lớp được vẽ chung một nhóm; lá riêng vẫn lay nhẹ theo gió. Có ba dáng lá: lá rộng, lá xẻ và lá thuôn. Lá rơi xuất phát từ tán cây, lắc và xoay khi rơi, nằm trên mặt đất rồi mờ dần để tái sử dụng. Mức Đẹp & mượt trên điện thoại giữ khoảng 6.720 lá trên cây và 30 lá rơi; mức Rất nét có khoảng 12.096 lá và 72 lá rơi. Các lá dùng chung hình học/vật liệu và vẽ theo nhóm để giảm tải điện thoại.
+
+Tường bao liên tục ôm toàn bộ sân, cây và tiểu cảnh thác nước, có chân đá, trụ và nẹp trên đồng bộ. Hai đầu tường nối vào cổng; suối đi qua cửa vòm hoàn chỉnh. Nền đất khớp mép tường, đường lát tiếp nối từ cổng, núi cảnh nền nằm phía ngoài tường sau.
 
 Bốn chú chim đậu trên cành, thỉnh thoảng bay sang cây khác. Tiếng chim được tổng hợp bằng Web Audio với ba kiểu nhịp/giai điệu, đôi lúc có tiếng đáp từ phía khác của vườn. Âm lượng giảm theo khoảng cách và vị trí trái–phải thay đổi theo góc nhìn; chuyển động chim gắn với tiếng hót. Nút loa / phím **M** tắt cả chim, nước, chuông và bước chân. Không cần tải bản ghi âm ngoài.
 
@@ -103,7 +105,7 @@ Chỉ chạy **một instance** vì dữ liệu sân hiện nằm trong RAM, ch�
 
 ## Kiểm thử
 
-Chính điện có sàn gạch vuông, bốn ghế sofa ba chỗ hai bên lối giữa, trần gỗ cao và hai quạt trần quay. Sofa bọc vải tông nâu be, có tựa lưng, tay vịn và gối tựa. Tượng Phật ngồi trên đài sen, có bàn thờ, bình hoa và đèn vàng. Lư hương nằm **bên trong chính điện, trước bàn thờ**; bước lên thềm, đến gần rồi nhấn **F** hoặc **Thắp nhang**. Ánh sáng chuyển dịu và ấm hơn khi vào trong bằng góc nhìn mắt nhân vật.
+Chính điện có sàn gạch vuông, bốn ghế sofa ba chỗ hai bên lối giữa, trần gỗ cao và hai quạt trần quay. Sofa bọc vải tông nâu be, có tựa lưng, tay vịn và gối tựa. Chạm vào sofa để nhân vật tự đi vòng tới phía trước rồi ngồi lên đệm; hoặc tới gần và bấm **Ngồi sofa / E**. Mỗi ghế có ba chỗ, đồng bộ người đang ngồi. Bấm **Đứng dậy**, kéo cần hoặc chạm xuống sàn để đứng lên đi tiếp. Sofa và chân cột chặn đường đi. Dầm gỗ, giằng đầu cột và khung đỡ mái nối liền các tầng mái với cột khi nhìn từ bên ngoài. Tượng Phật ngồi trên đài sen, có bàn thờ, bình hoa và đèn vàng. Lư hương nằm **bên trong chính điện, trước bàn thờ**; bước lên thềm, đến gần rồi nhấn **F** hoặc **Thắp nhang**. Ánh sáng chuyển dịu và ấm hơn khi vào trong bằng góc nhìn mắt nhân vật.
 
 ```powershell
 npm test

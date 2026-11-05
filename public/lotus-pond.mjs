@@ -16,24 +16,33 @@ export class LotusPond{
     const m=new THREE.Mesh(geometry,mat);m.position.set(x,y,z);m.scale.set(sx,sy,sz);parent.add(m);return m;
   }
   buildWater(){
-    const bed=this.part(this.root,new THREE.CircleGeometry(1,96),material('#3bafbf'),0,.012,0,13.4,8.6,1);bed.rotation.x=-Math.PI/2;
+    const size=128,pixels=new Uint8Array(size*size*4),deep=new THREE.Color('#328b91'),shore=new THREE.Color('#9ac9b5');
+    for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+      const px=x/(size-1)*2-1,py=y/(size-1)*2-1,r=Math.min(1,Math.hypot(px,py));
+      const c=deep.clone().lerp(shore,Math.pow(r,4)),grain=(Math.sin(x*.079+y*.053)+Math.sin(x*.033-y*.067))*.008;
+      const i=(y*size+x)*4;pixels[i]=Math.round(THREE.MathUtils.clamp(c.r+grain,0,1)*255);pixels[i+1]=Math.round(THREE.MathUtils.clamp(c.g+grain,0,1)*255);pixels[i+2]=Math.round(THREE.MathUtils.clamp(c.b+grain,0,1)*255);pixels[i+3]=255;
+    }
+    const bedMap=new THREE.DataTexture(pixels,size,size);bedMap.colorSpace=THREE.LinearSRGBColorSpace;bedMap.magFilter=THREE.LinearFilter;bedMap.needsUpdate=true;
+    const bed=this.part(this.root,new THREE.CircleGeometry(1,96),material('#ffffff',{map:bedMap}),0,.012,0,13.4,8.6,1);bed.rotation.x=-Math.PI/2;bed.receiveShadow=true;
     const water=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uTime:this.time},side:THREE.DoubleSide,
       vertexShader:`uniform float uTime;varying vec3 vWorld;varying vec2 vLocal;
         void main(){vec3 p=position;vLocal=p.xy;p.z+=sin(p.x*1.8+uTime*.8)*sin(p.y*2.1-uTime*.65)*.012;
         vWorld=(modelMatrix*vec4(p,1.)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.);}`,
       fragmentShader:`uniform float uTime;varying vec3 vWorld;varying vec2 vLocal;
         void main(){vec2 p=vWorld.xz;float t=uTime;
-          float a=sin(p.x*2.8+p.y*1.7-t*1.15+sin(p.y*1.3+t*.3));
-          float b=sin(p.x*-1.6+p.y*3.5+t*.85+sin(p.x*.9-t*.2));
-          vec3 n=normalize(vec3(a*.075,1.,b*.065));vec3 view=normalize(cameraPosition-vWorld);
+          float a=sin(p.x*1.35+p.y*.73-t*.66)+sin(p.x*3.1-p.y*1.2+t*.43)*.25;
+          float b=sin(p.y*1.7-p.x*.56+t*.48)+sin(p.y*3.6+p.x*.9-t*.62)*.22;
+          vec3 n=normalize(vec3(a*.038,1.,b*.033));vec3 view=normalize(cameraPosition-vWorld);
           float fresnel=pow(1.-max(dot(n,view),0.),3.);
           float edge=smoothstep(.72,1.,length(vLocal));
-          vec3 color=mix(vec3(.035,.46,.64),vec3(.25,.76,.83),edge);
-          color=mix(color,vec3(.76,.94,1.),fresnel*.45);
-          float caustic=pow(max(0.,1.-abs(a+b)*.5),22.);
-          float sparkle=pow(max(dot(reflect(normalize(vec3(-.45,-1.,-.3)),n),view),0.),80.);
-          color+=vec3(.64,.92,1.)*caustic*.085+vec3(.90,.97,1.)*sparkle*.48;
-          gl_FragColor=vec4(color,.27+fresnel*.24+edge*.10);
+          vec3 color=mix(vec3(.045,.36,.42),vec3(.28,.65,.60),edge);
+          vec3 reflected=reflect(-view,n);float cloud=sin(reflected.x*5.+sin(reflected.z*4.+t*.025))*.5+.5;
+          vec3 sky=mix(vec3(.37,.64,.61),vec3(.74,.88,.94),smoothstep(.0,.8,reflected.y));sky+=cloud*.035;
+          color=mix(color,sky,fresnel*.65);
+          float glint=pow(max(0.,sin(p.x*2.1+p.y*.6-t*.8+sin(p.y*1.8)*.7)),28.);
+          float sparkle=pow(max(dot(reflect(normalize(vec3(-.45,-1.,-.3)),n),view),0.),120.);
+          color+=vec3(.73,.91,.90)*glint*.025+vec3(.97,.98,.90)*sparkle*.3;
+          gl_FragColor=vec4(color,.20+fresnel*.30+edge*.07);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`});
@@ -44,6 +53,8 @@ export class LotusPond{
       const a=i/64*TAU;dummy.position.set(Math.cos(a)*13.65,.13,Math.sin(a)*8.85);dummy.rotation.set(this.random()*.3,a,this.random()*.4);dummy.scale.set(.45+this.random()*.4,.22+this.random()*.23,.4+this.random()*.3);dummy.updateMatrix();rocks.setMatrixAt(i,dummy.matrix);
     }
     rocks.castShadow=true;rocks.receiveShadow=true;rocks.name='pond-shore-stones';this.root.add(rocks);
+    const pebbles=new THREE.InstancedMesh(this.sphere,material('#729b8f'),24);
+    for(let i=0;i<24;i++){const a=this.random()*TAU,r=.82+this.random()*.12;dummy.position.set(Math.cos(a)*12.8*r,.025,Math.sin(a)*8*r);dummy.rotation.set(0,a,0);dummy.scale.set(.06+this.random()*.08,.012,.05+this.random()*.06);dummy.updateMatrix();pebbles.setMatrixAt(i,dummy.matrix);}pebbles.name='submerged-pond-pebbles';pebbles.computeBoundingSphere();this.root.add(pebbles);
     const stepGeo=new THREE.CylinderGeometry(1,1.08,.20,24),stepMat=material('#b6c2b9');
     for(const step of window.POND_STEPS){
       const stone=this.part(this.root,stepGeo,stepMat,(step.x-204)/10,.19,(step.y-451)/10,step.radius/10,1,step.radius/10);
@@ -56,7 +67,7 @@ export class LotusPond{
     shape.lineTo(.06,0);shape.closePath();return new THREE.ShapeGeometry(shape,48);
   }
   buildLotuses(){
-    const geometry=this.padGeometry(),greens=['#56865d','#639768','#729e69'];
+    const geometry=this.padGeometry(),greens=['#42875d','#539b64','#67aa6d'];
     const makePad=(x,z,r,id=null)=>{
       const g=new THREE.Group();g.position.set(x,.34,z);this.root.add(g);
       const pad=this.part(g,geometry,material(greens[this.pads.length%3],{side:THREE.DoubleSide}),0,0,0,r,r,1);pad.rotation.x=-Math.PI/2;pad.rotation.z=id===null?this.random()*TAU:Math.PI/2;
@@ -79,19 +90,28 @@ export class LotusPond{
     }
   }
   buildFish(){
-    const colors=['#e99a48','#f1e4c8','#cf6946','#edc976','#e3d9c3','#dc7f51','#f4dab0','#a5b7ad'];
-    const finShape=new THREE.Shape();finShape.moveTo(0,0);finShape.quadraticCurveTo(-.1,.25,-.48,.32);finShape.lineTo(-.34,0);finShape.lineTo(-.48,-.32);finShape.quadraticCurveTo(-.1,-.25,0,0);
+    const colors=['#e87b36','#f4efe1','#cf4e3c','#efba48','#f3e6ce','#ec9851','#edebe1','#c1ad6a'];
+    const finShape=new THREE.Shape();finShape.moveTo(0,0);finShape.bezierCurveTo(-.16,.08,-.30,.30,-.57,.28);finShape.quadraticCurveTo(-.44,.08,-.43,0);finShape.quadraticCurveTo(-.44,-.08,-.57,-.28);finShape.bezierCurveTo(-.30,-.30,-.16,-.08,0,0);
     const finGeo=new THREE.ShapeGeometry(finShape);
+    const rays=new THREE.BufferGeometry(),rayPoints=[];for(let j=0;j<7;j++)rayPoints.push(0,0,0,-.51,(j/6-.5)*.48,0);rays.setAttribute('position',new THREE.Float32BufferAttribute(rayPoints,3));
+    const finMat=material('#f4d7b6',{side:THREE.DoubleSide,transparent:true,opacity:.83,depthWrite:false}),eyeMat=material('#263830',{roughness:.18}),bodyMat=material('#ffffff',{vertexColors:true,roughness:.37});
     colors.forEach((color,i)=>{
-      const g=new THREE.Group(),bodyMat=material(color,{roughness:.38});this.root.add(g);g.name=`pond-koi-${i}`;
-      this.part(g,this.sphere,bodyMat,0,0,0,.65,.065,.22);
-      this.part(g,this.sphere,material(i%2?'#c66b42':'#fff0d4'),-.14,.05,.015,.22,.02,.15);
-      const tail=new THREE.Group();tail.position.x=-.53;g.add(tail);
-      const fin=this.part(tail,finGeo,material(color,{side:THREE.DoubleSide,transparent:true,opacity:.8}),0,0,0);fin.rotation.x=-Math.PI/2;
-      const fins=[];for(const side of [-1,1]){
-        const f=this.part(g,this.sphere,bodyMat,.03,-.008,side*.2,.2,.015,.13);f.rotation.y=side*.55;fins.push(f);
-        this.part(g,this.sphere,material('#28372e'),.43,.048,side*.11,.035,.012,.025);
+      const g=new THREE.Group();this.root.add(g);g.name=`pond-koi-${i}`;
+      const geometry=new THREE.SphereGeometry(1,24,12),p=geometry.attributes.position,colors=[],base=new THREE.Color(color),cream=new THREE.Color('#fff3dc'),red=new THREE.Color(i%3?'#d55337':'#d18b38');
+      for(let j=0;j<p.count;j++){
+        const x=p.getX(j),z=p.getZ(j),patch=Math.sin(x*6.4+z*3.2+i*1.7)+.55*Math.sin(z*8.2-x*2.5+i);
+        const c=patch>.4?(i%2?red:cream):base;colors.push(c.r,c.g,c.b);
       }
+      geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));this.part(g,geometry,bodyMat,0,0,0,.73,.073,.23);
+      const tail=new THREE.Group();tail.position.x=-.61;g.add(tail);
+      const fin=this.part(tail,finGeo,finMat,0,0,0);fin.rotation.x=-Math.PI/2;
+      const lines=new THREE.LineSegments(rays,new THREE.LineBasicMaterial({color:'#a68165',transparent:true,opacity:.33}));lines.rotation.x=-Math.PI/2;tail.add(lines);
+      const fins=[];for(const side of [-1,1]){
+        const f=this.part(g,this.sphere,finMat,.06,-.008,side*.22,.22,.014,.15);f.rotation.y=side*.55;fins.push(f);
+        this.part(g,this.sphere,material('#f5ebd9'),.51,.047,side*.12,.043,.018,.038);
+        this.part(g,this.sphere,eyeMat,.52,.06,side*.125,.025,.012,.022);
+      }
+      const dorsal=this.part(g,this.sphere,finMat,-.05,.067,0,.29,.016,.038);dorsal.rotation.x=.18;
       const scale=.65+this.random()*.45;g.scale.setScalar(scale);
       this.fish.push({g,tail,fins,phase:i/8*TAU,rx:4+this.random()*6.5,rz:2.8+this.random()*3.8,speed:(i%2?1:-1)*(.065+this.random()*.035)});
     });
@@ -114,7 +134,7 @@ export class LotusPond{
       const a=f.phase+time*f.speed,x=Math.cos(a)*f.rx,z=Math.sin(a)*f.rz;
       const dx=-Math.sin(a)*f.rx*f.speed,dz=Math.cos(a)*f.rz*f.speed;
       f.g.position.set(x,.12+Math.sin(time*.9+i)*.018,z);f.g.rotation.y=Math.atan2(-dz,dx);
-      f.tail.rotation.y=Math.sin(time*3.8+i)*.36;f.fins.forEach((fin,j)=>fin.rotation.y=(j?1:-1)*(.55+Math.sin(time*2.4+i)*.15));
+      f.tail.rotation.y=Math.sin(time*3.1+i)*.32;f.g.rotation.z=Math.sin(time*1.2+i)*.008;f.fins.forEach((fin,j)=>fin.rotation.y=(j?1:-1)*(.55+Math.sin(time*2.1+i)*.17));
     });
     this.ripples.forEach(({ring,phase})=>{const age=(time*.14+phase)%1;ring.scale.setScalar(.15+age*1.7);ring.material.opacity=Math.sin(age*Math.PI)*.15;});
   }

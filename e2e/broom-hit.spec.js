@@ -49,12 +49,16 @@ for(const mobile of [false,true])test(`a held broom always offers a forward swin
       const box=await a.locator('#joystick').boundingBox(),x=box.x+box.width/2,y=box.y+box.height/2,cdp=await context.newCDPSession(a);
       await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1}]});
       await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x+35,y,id:1}]});
-      try{await expect.poll(inFront,{timeout:8000}).toBe(true);}finally{await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();}
+      try{await expect.poll(inFront,{intervals:[30],timeout:8000}).toBe(true);}finally{await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();}
     }else{
       await a.locator('#canvas').focus();await a.keyboard.down('d');
-      try{await expect.poll(inFront,{timeout:8000}).toBe(true);}finally{await a.keyboard.up('d');}
+      try{await expect.poll(inFront,{intervals:[30],timeout:8000}).toBe(true);}finally{await a.keyboard.up('d');}
     }
-    await a.waitForTimeout(300);await expect(a.locator('#broom-hit')).toBeEnabled();await touch(a,'#broom-hit');
+    await a.waitForTimeout(300);await expect(a.locator('#broom-hit')).toBeEnabled();
+    const approach=await a.evaluate(()=>{const{self,other,view}=window.hitQA;return{dx:other.x-self.x,dy:other.y-self.y,heading:view.models.get(self.id).root.rotation.y};});
+    expect(approach.dx,JSON.stringify(approach)).toBeGreaterThan(5);expect(approach.dx,JSON.stringify(approach)).toBeLessThan(40);
+    expect(Math.sin(approach.heading),JSON.stringify(approach)).toBeGreaterThan(.9);
+    await touch(a,'#broom-hit');
     await expect(a.locator('#blessing-score')).toHaveText('-1');
     await expect.poll(()=>a.evaluate(()=>window.hitQA.other.struckStart>0)).toBe(true);
     await a.screenshot({path:`test-results/broom-hit-${mobile?'mobile':'desktop'}.png`});

@@ -18,7 +18,7 @@ for(const mobile of [false,true])test(`incense can follow the finished ritual im
     await expect(page.locator('#incense-count')).toHaveText(/^3\s/);await page.waitForTimeout(1700);
     await expect(page.locator('#incense')).toBeDisabled();await expect(page.locator('#location-hint')).toContainText('3');
     const count=await page.evaluate(async()=>{const{TempleView}=await import('/scene3d.js');return new Promise(resolve=>{const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){render.apply(this,args);TempleView.prototype.render=render;resolve(this.incenseSmoke.mesh.count);};});});
-    expect(count).toBe(mobile?9:15);
+    expect(count).toBe(15);
     expect(errors).toEqual([]);
   }finally{await context.close();}
 });

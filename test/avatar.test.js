@@ -56,3 +56,12 @@ test('meditation lowers the hips to the seat and folds both shins inward with fl
     disposeAvatar(m);
   }
 });
+
+test('sofa sitting rests on the cushion with knees forward and lower legs hanging down',async()=>{
+  const {createAvatar,poseAvatar,disposeAvatar}=await modelModule,{Vector3}=await import('three');
+  const m=createAvatar(config.defaults());for(let i=0;i<40;i++)poseAvatar(m,{action:'sit',sofaSeatId:'sofa'},i*.05,.05);
+  m.root.position.y=1.6+m.postureOffset;m.root.updateMatrixWorld(true);
+  assert.ok(Math.abs(m.root.position.y+.595-1.6)<1e-6);
+  for(let i=0;i<2;i++){const hip=m.legs[i].getWorldPosition(new Vector3()),knee=m.knees[i].getWorldPosition(new Vector3()),ankle=m.ankles[i].getWorldPosition(new Vector3());assert.ok(knee.z>hip.z+.3);assert.ok(ankle.y<knee.y-.28);}
+  disposeAvatar(m);
+});

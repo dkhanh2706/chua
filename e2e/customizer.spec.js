@@ -40,8 +40,8 @@ test('mobile supports walking and looking with two touches, releasing stops move
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),page=await context.newPage();
   try{
     await page.goto('/');await page.locator('#name').fill('Bình An');await page.locator('#join-button').tap();await inspectGame(page);
-    const snapshot=()=>page.evaluate(()=>{const v=window.gameQA.view,p=v.models.get(window.gameQA.id).root.position;return{x:p.x,z:p.z,yaw:v.yaw,battery:v.batterySaver,ratio:v.renderer.getPixelRatio(),shadow:v.renderer.shadowMap.enabled};});
-    const before=await snapshot();expect(before.battery).toBe(true);expect(before.shadow).toBe(false);expect(before.ratio).toBeLessThanOrEqual(1.2);
+    const snapshot=()=>page.evaluate(()=>{const v=window.gameQA.view,p=v.models.get(window.gameQA.id).root.position;return{x:p.x,z:p.z,yaw:v.yaw,quality:v.quality,ratio:v.renderer.getPixelRatio(),shadow:v.renderer.shadowMap.enabled};});
+    const before=await snapshot();expect(before.quality).toBe('balanced');expect(before.shadow).toBe(true);expect(before.ratio).toBeLessThanOrEqual(1.5);
     const pad=await page.locator('#joystick').boundingBox(),x=pad.x+pad.width/2,y=pad.y+pad.height/2;const cdp=await context.newCDPSession(page);
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1},{x:250,y:390,id:2}]});
     await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x,y:y-35,id:1},{x:305,y:398,id:2}]});
@@ -49,10 +49,10 @@ test('mobile supports walking and looking with two touches, releasing stops move
     expect(Math.abs((await snapshot()).yaw-before.yaw)).toBeGreaterThan(.1);
     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(150);const stopped=await snapshot();await page.waitForTimeout(300);const after=await snapshot();expect(Math.hypot(after.x-stopped.x,after.z-stopped.z)).toBeLessThan(.08);
     await expect(page.locator('#people-panel')).not.toBeVisible();await expect(page.locator('#people-toggle')).not.toBeVisible();
-    await page.locator('#settings-toggle').tap();await expect(page.locator('#battery-saver')).toBeVisible();await expect(page.locator('#camera-overhead')).toBeVisible();
-    await page.locator('#battery-saver').tap();await expect(page.locator('#battery-saver')).toHaveAttribute('aria-pressed','false');expect((await snapshot()).shadow).toBe(true);
-    await page.locator('#battery-saver').tap();await expect(page.locator('#battery-saver')).toHaveAttribute('aria-pressed','true');expect((await snapshot()).shadow).toBe(false);
-    expect(await page.evaluate(()=>localStorage.getItem('temple-battery-saver'))).toBe('true');
+    await page.locator('#settings-toggle').tap();await expect(page.locator('#quality-mode')).toBeVisible();await expect(page.locator('#camera-overhead')).toBeVisible();
+    await page.locator('#quality-mode').tap();await expect(page.locator('#quality-mode')).toHaveAttribute('aria-pressed','true');expect((await snapshot()).quality).toBe('high');expect((await snapshot()).shadow).toBe(true);
+    await page.locator('#quality-mode').tap();await expect(page.locator('#quality-mode')).toHaveAttribute('aria-pressed','false');expect((await snapshot()).quality).toBe('balanced');expect((await snapshot()).shadow).toBe(true);
+    expect(await page.evaluate(()=>localStorage.getItem('temple-visual-quality'))).toBe('balanced');
     await page.locator('#settings-toggle').tap();await expect(page.locator('#camera-overhead')).not.toBeVisible();
     await page.screenshot({path:'test-results/mobile-overhead.png'});
     await context.setOffline(true);await page.waitForTimeout(100);await context.setOffline(false);
@@ -62,5 +62,5 @@ test('mobile supports walking and looking with two touches, releasing stops move
 
 for(const viewport of [{width:320,height:640},{width:844,height:390}])test(`touch layout stays usable at ${viewport.width}×${viewport.height}`,async({browser})=>{
   const context=await browser.newContext({viewport,isMobile:true,hasTouch:true}),page=await context.newPage();
-  try{await page.goto('/');await expect(page.locator('body')).toHaveJSProperty('scrollWidth',viewport.width);await page.locator('#name').fill('An');await page.locator('#join-button').tap();await expect(page.locator('#joystick')).toBeVisible();await expect(page.locator('#sit')).toBeInViewport();await expect(page.locator('#bow')).toBeInViewport();await page.locator('#settings-toggle').tap();await expect(page.locator('#camera-follow')).toBeInViewport();await expect(page.locator('#battery-saver')).toBeInViewport();await page.locator('#settings-toggle').tap();await expect(page.locator('.yard-tools')).not.toBeVisible();await expect(page.locator('.blessing-panel')).toBeInViewport();await page.screenshot({path:`test-results/layout-${viewport.width}.png`});}finally{await context.close();}
+  try{await page.goto('/');await expect(page.locator('body')).toHaveJSProperty('scrollWidth',viewport.width);await page.locator('#name').fill('An');await page.locator('#join-button').tap();await expect(page.locator('#joystick')).toBeVisible();await expect(page.locator('#sit')).toBeInViewport();await expect(page.locator('#bow')).toBeInViewport();await page.locator('#settings-toggle').tap();await expect(page.locator('#camera-follow')).toBeInViewport();await expect(page.locator('#quality-mode')).toBeInViewport();await page.locator('#settings-toggle').tap();await expect(page.locator('.yard-tools')).not.toBeVisible();await expect(page.locator('.blessing-panel')).toBeInViewport();await page.screenshot({path:`test-results/layout-${viewport.width}.png`});}finally{await context.close();}
 });

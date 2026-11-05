@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { io } = require('socket.io-client');
 const { createTemple } = require('../server');
-const { validPosition, groundHeight,riverX,bridgeHeight,LOTUS_SEATS,lotusAt,lotusHeight } = require('../public/world');
+const { validPosition,canWalkBetween,groundHeight,riverX,bridgeHeight,LOTUS_SEATS,lotusAt,lotusHeight,SOFA_LAYOUT,SOFA_SEATS,HALL_COLUMNS } = require('../public/world');
 const {BROOM_RACKS,LEAF_PATCHES,LEAF_RESPAWN,SWEEP_DURATION,HIT_RANGE,HIT_DURATION,HIT_COOLDOWN}=require('../public/sweeping');
 
 const event = (socket, name) => new Promise((resolve, reject) => {
@@ -161,7 +161,7 @@ test('arched bridge rises smoothly from either bank and blocks walking through t
   assert.equal(validPosition(center,477),false);assert.equal(validPosition(center,533),false);assert.equal(groundHeight(center+67,505),0);
 });
 test('3D hall has an open entrance, solid walls and altar, and raised floor', () => {
-  assert.equal(validPosition(420,240),true);
+  assert.equal(validPosition(450,240),true);assert.equal(validPosition(420,240),false);
   assert.equal(validPosition(308,220),false);
   assert.equal(validPosition(335,220),true);
   assert.equal(groundHeight(320,240),1.2);
@@ -170,6 +170,26 @@ test('3D hall has an open entrance, solid walls and altar, and raised floor', ()
   assert.equal(groundHeight(420,240),1.2);
   assert.equal(groundHeight(500,400),0);
   assert.ok(groundHeight(500,280)>0&&groundHeight(500,280)<1.2);
+});
+
+test('sofas and columns block walking; reserved sofa seats synchronise and release safely',async t=>{
+  for(const sofa of SOFA_LAYOUT){assert.equal(validPosition(sofa.x,sofa.y),false);assert.equal(canWalkBetween(sofa.x-40,sofa.y,sofa.x+40,sofa.y),false);}
+  for(const column of HALL_COLUMNS.filter(c=>c.y>=125)){assert.equal(validPosition(column.x,column.y),false);assert.equal(canWalkBetween(column.x-12,column.y,column.x+12,column.y),false);}
+  for(const seat of SOFA_SEATS)assert.equal(validPosition(seat.approachX,seat.approachY),true);
+  let clock=100000;const f=await fixture(t,{now:()=>clock}),a=await f.client(),b=await f.client();await f.join(a);await f.join(b);
+  const seat=SOFA_SEATS[1],p=f.players.get(a.id),q=f.players.get(b.id);
+  let error=event(a,'sofa-error');a.emit('sit-sofa',{seatId:seat.id});assert.equal(await error,'far');
+  Object.assign(p,{x:seat.approachX,y:seat.approachY});Object.assign(q,{x:seat.approachX,y:seat.approachY});
+  const changed=event(a,'sofa-changed'),seen=event(b,'sofa-changed');a.emit('sit-sofa',{seatId:seat.id});const seated=await changed;assert.deepEqual(await seen,seated);assert.equal(p.sofaSeatId,seat.id);assert.equal(p.action,'sit');assert.equal(p.x,seat.x);
+  error=event(b,'sofa-error');b.emit('sit-sofa',{seatId:seat.id});assert.equal(await error,'occupied');
+  a.emit('move',{x:450,y:235});await new Promise(resolve=>setTimeout(resolve,40));assert.equal(p.x,seat.x);
+  const c=await f.client();assert.equal((await f.join(c)).players.find(p=>p.id===a.id).sofaSeatId,seat.id);
+  clock+=501;let left=event(a,'sofa-changed');const sawLeave=event(b,'sofa-changed');a.emit('action','stand');await left;await sawLeave;assert.equal(p.sofaSeatId,null);assert.equal(p.y,seat.approachY);assert.equal(validPosition(p.x,p.y),true);
+  const occupied=event(b,'sofa-changed');b.emit('sit-sofa',{seatId:seat.id});await occupied;assert.equal(q.sofaSeatId,seat.id);b.disconnect();
+  clock+=501;left=event(a,'sofa-changed');a.emit('sit-sofa',{seatId:seat.id});await left;assert.equal(p.sofaSeatId,seat.id);
+  clock+=501;left=event(a,'sofa-changed');a.emit('action','stand');await left;clock+=501;
+  a.emit('move',{x:p.x,y:p.y});await new Promise(resolve=>setTimeout(resolve,40));clock+=1000;
+  a.emit('move',{x:seat.x,y:SOFA_LAYOUT[0].y+25});await new Promise(resolve=>setTimeout(resolve,50));assert.equal(p.y,seat.approachY,'cannot jump through the sofa even with a delayed movement packet');
 });
 test('custom appearance is sanitized, broadcast to current players, and included for late joiners',async t=>{
   const f=await fixture(t),first=await f.client();await f.join(first,{name:'An'});

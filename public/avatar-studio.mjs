@@ -16,7 +16,7 @@ export class AvatarStudio{
   render(canvas,size){
     const rect=size||canvas.getBoundingClientRect(),width=Math.round(rect.width),height=Math.round(rect.height);if(!width||!height||document.hidden)return;
     if(width!==this.width||height!==this.height){this.width=width;this.height=height;this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.dirty=true;}
-    const now=performance.now()/1000;if(!this.dirty&&now-(this.lastRender||0)<1/24)return;const dt=Math.min(.05,now-(this.lastRender||now-.016));this.lastRender=now;
+    const now=performance.now()/1000;const dt=Math.min(.05,now-(this.lastRender||now-.016));this.lastRender=now;
     if(this.gesture&&now*1000-this.gesture.start>=1500){this.gesture=null;this.action='idle';this.onActionChange?.('idle');}
     if(this.action==='walk')this.virtualX+=75*dt;
     if(this.model){poseAvatar(this.model,{action:this.action==='sit'?'sit':this.gesture?'bow':'stand',ritual:this.gesture,x:this.virtualX,y:0},now,dt);this.model.root.position.y=this.model.postureOffset;}

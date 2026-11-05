@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {makeTreeLayout,seededRandom,fallingLeafPose} from './garden-layout.mjs';
 
 const TAU=Math.PI*2,UP=new THREE.Vector3(0,1,0);
-const PALETTES=[['#668451','#7a9459','#91a765','#a3b676'],['#789051','#8c9d57','#a4ae65','#c1ad6b'],['#5f8459','#73976b','#8bab75','#a4bc88']];
+const PALETTES=[['#28744a','#398b51','#55a75e','#75bb75'],['#387d43','#4b9850','#6ab05f','#88c477'],['#256f50','#378b60','#53a86d','#7fbd86']];
 
 export function makeLeafGeometry(species=0){
   const positions=[],uvs=[],colors=[],indices=[],rows=9;
@@ -43,7 +43,7 @@ function barkTexture(){
 export class TempleGarden{
   constructor(parent,{batterySaver=false,groundHeight=()=>0}={}){
     this.root=new THREE.Group();this.root.name='detailed-garden';parent.add(this.root);this.layout=makeTreeLayout();this.trees=[];this.birds=[];this.audioSources=[];this.fallBatches=[];this.wind={value:0};this.groundHeight=groundHeight;
-    this.dummy=new THREE.Object3D();this.matrix=new THREE.Matrix4();this.color=new THREE.Color();this.branchTransforms=[];this.leafMap=leafTexture();this.barkMap=barkTexture();this.geometries=[0,1,2].map(makeLeafGeometry);
+    this.dummy=new THREE.Object3D();this.matrix=new THREE.Matrix4();this.color=new THREE.Color();this.branchTransforms=[];this.crownTransforms=[];this.leafMap=leafTexture();this.barkMap=barkTexture();this.geometries=[0,1,2].map(makeLeafGeometry);
     this.material=new THREE.MeshStandardMaterial({map:this.leafMap,roughness:.94,side:THREE.DoubleSide,vertexColors:true});
     this.material.onBeforeCompile=shader=>{
       shader.uniforms.uGardenTime=this.wind;
@@ -58,8 +58,13 @@ export class TempleGarden{
       `);
     };
     this.material.customProgramCacheKey=()=> 'garden-leaf-wind-v1';
-    this.branchGeometry=new THREE.CylinderGeometry(.72,1,1,9);this.branchMaterial=new THREE.MeshStandardMaterial({map:this.barkMap,roughness:1,color:'#8a7358'});
+    this.branchGeometry=new THREE.CylinderGeometry(.72,1,1,9);this.branchMaterial=new THREE.MeshStandardMaterial({map:this.barkMap,roughness:1,color:'#80694d'});
     for(const tree of this.layout)this.buildTree(tree);
+    const crownGeo=new THREE.SphereGeometry(1,16,10),crownPoints=crownGeo.attributes.position;
+    for(let i=0;i<crownPoints.count;i++){const x=crownPoints.getX(i),y=crownPoints.getY(i),z=crownPoints.getZ(i),r=1+.07*Math.sin(x*4+y*3)*Math.cos(z*4-y*2);crownPoints.setXYZ(i,x*r,y*r,z*r);}crownGeo.computeVertexNormals();
+    this.crowns=new THREE.InstancedMesh(crownGeo,new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.95}),this.crownTransforms.length);this.crowns.name='lush-green-tree-crowns';
+    this.crownTransforms.forEach((c,i)=>{this.dummy.position.copy(c.position);this.dummy.quaternion.identity();this.dummy.scale.set(c.radius,c.radius*.74,c.radius*.92);this.dummy.updateMatrix();this.crowns.setMatrixAt(i,this.dummy.matrix);this.crowns.setColorAt(i,new THREE.Color(c.color));});
+    this.crowns.castShadow=true;this.crowns.receiveShadow=true;this.crowns.computeBoundingSphere();this.root.add(this.crowns);
     this.branches=new THREE.InstancedMesh(this.branchGeometry,this.branchMaterial,this.branchTransforms.length);this.branches.name='bark-and-branches';
     this.branchTransforms.forEach((t,i)=>{this.dummy.position.copy(t.center);this.dummy.quaternion.copy(t.quaternion);this.dummy.scale.set(t.radius,t.length,t.radius);this.dummy.updateMatrix();this.branches.setMatrixAt(i,this.dummy.matrix);this.branches.setColorAt(i,new THREE.Color(t.tint));});
     this.branches.castShadow=true;this.branches.receiveShadow=true;this.branches.computeBoundingSphere();this.root.add(this.branches);
@@ -85,9 +90,11 @@ export class TempleGarden{
       const angle=i/primary*TAU+random()*.5,level=.56+random()*.28;
       const start=trunkPoint(h*(.37+random()*.25));
       const end=new THREE.Vector3(tree.x+Math.cos(angle)*r*.57,h*level+.6,tree.z+Math.sin(angle)*r*.57);this.branch(start,end,.15,'#f0e7d5');perches.push(start.clone().lerp(end,.72));
+      this.crownTransforms.push({position:end.clone().add(new THREE.Vector3(0,.55,0)),radius:r*.32,color:PALETTES[tree.species][i%3]});
       for(let j=0;j<4;j++){
         const a=angle+(j-1.5)*.43,reach=r*(.32+random()*.2);
         const tip=end.clone().add(new THREE.Vector3(Math.cos(a)*reach,.8+random()*.9,Math.sin(a)*reach));this.branch(end,tip,.065,'#ebdfca');
+        if(j%2===0)this.crownTransforms.push({position:end.clone().lerp(tip,.68),radius:r*.30,color:PALETTES[tree.species][1+j]});
         for(let k=0;k<3;k++){
           const b=a+(k-1)*.63,origin=end.clone().lerp(tip,.45+k*.24);
           const twig=origin.clone().add(new THREE.Vector3(Math.cos(b)*.8,tree.species===2?-.55:.32+random()*.4,Math.sin(b)*.8));this.branch(origin,twig,.025,'#d9c8a7');
@@ -95,7 +102,7 @@ export class TempleGarden{
           for(let pair=0;pair<3;pair++)for(const side of [-1,1]){
             const base=origin.clone().lerp(twig,.22+pair*.32),direction=axis.clone().multiplyScalar(.35).addScaledVector(across,side*.8).add(new THREE.Vector3(0,tree.species===2?-.4:.24,0)).normalize();
             const quaternion=new THREE.Quaternion().setFromUnitVectors(UP,direction);quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(UP,(random()-.5)*1.9));
-            const size=(tree.species===2?.76:.7)+random()*.38;leaves.push({base,quaternion,size,color:PALETTES[tree.species][Math.floor(random()*4)]});
+            const size=(tree.species===2?.72:.60)+random()*.32;leaves.push({base,quaternion,size,color:PALETTES[tree.species][Math.floor(random()*4)]});
           }
         }
       }

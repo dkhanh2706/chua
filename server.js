@@ -3,7 +3,7 @@ const http = require('node:http');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { Server } = require('socket.io');
-const { validPosition,groundHeight, URN, WORLD } = require('./public/world');
+const { validPosition,canWalkBetween,groundHeight,SOFA_SEATS,SOFA_REACH, URN, WORLD } = require('./public/world');
 const AvatarConfig = require('./public/avatar-config');
 const {BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN,HIT_RANGE,HIT_DURATION,HIT_CONTACT,HIT_COOLDOWN}=require('./public/sweeping');
 
@@ -19,7 +19,7 @@ function createTemple(options = {}) {
   const now = options.now || Date.now;
   const ttl = options.incenseTTL || 300000;
   let dirty = false;
-  const publicPlayer = p => ({ id: p.id, name: p.name, character: p.character, color: p.color, avatar: p.avatar, x: p.x, y: p.y, action: p.action,hasBroom:p.hasBroom,blessings:p.blessings });
+  const publicPlayer = p => ({ id: p.id, name: p.name, character: p.character, color: p.color, avatar: p.avatar, x: p.x, y: p.y, action: p.action,sofaSeatId:p.sofaSeatId,hasBroom:p.hasBroom,blessings:p.blessings });
   const publicIncense = i => ({ id: i.id, owner: i.owner, slot: i.slot, ttl: Math.max(0, i.expiresAt - now()) });
   const publicPatch=p=>({id:p.id,x:p.x,y:p.y,tree:p.tree,readyIn:Math.max(0,p.availableAt-now())});
   app.disable('x-powered-by');
@@ -39,7 +39,7 @@ function createTemple(options = {}) {
       const occupied = new Set([...players.values()].map(p => p.spawn));
       const spawn = [0, 1, 2, 3, 4].find(n => !occupied.has(n));
       const avatar = AvatarConfig.normalize(input.avatar, input.character, input.color);
-      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand', bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0,lastHit:-Infinity };
+      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand',sofaSeatId:null, bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0,lastHit:-Infinity };
       players.set(socket.id, p);
       socket.join('temple');
       socket.emit('joined', { id: p.id, players: [...players.values()].map(publicPlayer), incense: [...incense.values()].map(publicIncense),leaves:[...leafPatches.values()].map(publicPatch) });
@@ -51,10 +51,10 @@ function createTemple(options = {}) {
       const p = players.get(socket.id);
       const time = now();
       if (!p || !input || typeof input.x !== 'number' || typeof input.y !== 'number' || !Number.isFinite(input.x) || !Number.isFinite(input.y) || time - lastMove < 35) return;
-      if (p.bowUntil > time || p.sweepUntil > time) return;
+      if (p.bowUntil > time || p.sweepUntil > time || p.sofaSeatId) return;
       const x = Math.max(25, Math.min(WORLD.width - 25, input.x));
       const y = Math.max(125, Math.min(WORLD.height - 35, input.y));
-      if (!validPosition(x, y)) return;
+      if (!validPosition(x, y)||!canWalkBetween(p.x,p.y,x,y)) return;
       const maxDistance = 230 * Math.min((time - (lastMove || time - 50)) / 1000, 1) + 14;
       if (Math.hypot(x - p.x, y - p.y) > maxDistance) return;
       lastMove = time;
@@ -63,15 +63,30 @@ function createTemple(options = {}) {
     socket.on('action', action => {
       const p = players.get(socket.id);
       if (!p || !['stand', 'sit', 'bow'].includes(action) || p.bowUntil > now() || p.sweepUntil > now()) return;
+      if(p.sofaSeatId){
+        if(action!=='stand')return;
+        const seat=SOFA_SEATS.find(s=>s.id===p.sofaSeatId);p.x=seat.approachX;p.y=seat.approachY;p.sofaSeatId=null;p.action='stand';p.bowUntil=now()+500;
+        io.to('temple').emit('sofa-changed',{id:p.id,x:p.x,y:p.y,sofaSeatId:null,action:'stand'});dirty=true;return;
+      }
       p.action = action;
       p.bowUntil = action === 'bow' ? now() + 1500 : 0;
       dirty = true;
+    });
+    socket.on('sit-sofa',input=>{
+      const p=players.get(socket.id);if(!p)return;
+      const fail=code=>socket.emit('sofa-error',code),seat=SOFA_SEATS.find(s=>s.id===input?.seatId),time=now();
+      if(!seat)return fail('invalid');
+      if(p.sofaSeatId||p.action!=='stand'||p.bowUntil>time||p.sweepUntil>time)return fail('busy');
+      if(Math.hypot(p.x-seat.approachX,p.y-seat.approachY)>SOFA_REACH||!canWalkBetween(p.x,p.y,seat.approachX,seat.approachY))return fail('far');
+      if([...players.values()].some(other=>other.sofaSeatId===seat.id))return fail('occupied');
+      p.x=seat.x;p.y=seat.y;p.sofaSeatId=seat.id;p.action='sit';p.bowUntil=time+500;
+      io.to('temple').emit('sofa-changed',{id:p.id,x:p.x,y:p.y,sofaSeatId:seat.id,action:'sit'});dirty=true;
     });
     socket.on('plant-incense', () => {
       const p = players.get(socket.id);
       if (!p) return;
       const time=now(),fail = code => socket.emit('incense-error', code);
-      if(p.bowUntil>time||p.sweepUntil>time)return fail('busy');
+      if(p.bowUntil>time||p.sweepUntil>time||p.sofaSeatId)return fail('busy');
       if (Math.hypot(p.x - URN.x, p.y - URN.y) > 80) return fail('far');
       if ([...incense.values()].filter(i => i.owner === p.id).length >= 3) return fail('limit');
       if (incense.size >= 12) return fail('full');
@@ -141,7 +156,7 @@ function createTemple(options = {}) {
     for (const p of players.values()) if (p.action === 'bow' && now() >= p.bowUntil) { p.action = 'stand'; dirty = true; }
     if (!dirty) return;
     // Appearance is sent on joining; moving packets stay small on mobile data.
-    io.to('temple').emit('state', [...players.values()].map(({id,x,y,action}) => ({id,x,y,action}))); dirty = false;
+    io.to('temple').emit('state', [...players.values()].map(({id,x,y,action,sofaSeatId}) => ({id,x,y,action,sofaSeatId}))); dirty = false;
   }, 50);
   const incenseTimer = setInterval(() => {
     for (const [id, i] of incense) if (now() >= i.expiresAt) { incense.delete(id); io.to('temple').emit('incense-removed', { id }); }

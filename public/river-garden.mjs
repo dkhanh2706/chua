@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import {seededRandom} from './garden-layout.mjs';
+import {GARDEN_BOUNDS} from './garden-boundary.mjs';
 
 export const riverCenter=z=>(784+Math.sin((z*10+350)/130)*36-500)/10;
 const halfWidth=z=>3.6+Math.exp(-(((z+22)/3.6)**2));
-const BRIDGE_Z=15.5,SPAN=6.6;
+const BRIDGE_Z=15.5,SPAN=6.6,RIVER_LENGTH=GARDEN_BOUNDS.front+.4+24;
 
 function strip(rows,columns,point){
   const positions=[],uv=[],indices=[];
@@ -20,7 +21,7 @@ export class RiverGarden{
     this.random=seededRandom(5842);this.dummy=new THREE.Object3D();this.buildRiver();this.buildBanks();this.buildBridge();
   }
   buildRiver(){
-    const geometry=strip(180,12,(v,u)=>{const z=-24+v*69;return[riverCenter(z)+(u-.5)*halfWidth(z)*2,.055,z];});
+    const geometry=strip(180,12,(v,u)=>{const z=-24+v*RIVER_LENGTH;return[riverCenter(z)+(u-.5)*halfWidth(z)*2,.055,z];});
     const material=new THREE.ShaderMaterial({uniforms:{uTime:this.time},side:THREE.DoubleSide,
       vertexShader:`uniform float uTime;varying vec2 vUv;varying vec3 vWorld;
         void main(){vUv=uv;vec3 p=position;float bank=sin(uv.x*3.14159);p.y+=sin(p.z*2.1+p.x*1.4-uTime*1.7)*.009*bank;vWorld=(modelMatrix*vec4(p,1.0)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.0);}`,
@@ -51,7 +52,7 @@ export class RiverGarden{
     this.drift=[];const count=38;
     this.glints=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:'#d8e9d4',transparent:true,opacity:.19,depthWrite:false,side:THREE.DoubleSide}),count);
     this.glints.name='downstream-flow-glints';this.glints.instanceMatrix.setUsage(THREE.DynamicDrawUsage);this.glints.frustumCulled=false;this.root.add(this.glints);
-    for(let i=0;i<count;i++)this.drift.push({offset:this.random()*69,side:(this.random()-.5)*5.4,length:.24+this.random()*.6,speed:.65+this.random()*.35});
+    for(let i=0;i<count;i++)this.drift.push({offset:this.random()*RIVER_LENGTH,side:(this.random()-.5)*5.4,length:.24+this.random()*.6,speed:.65+this.random()*.35});
   }
   buildBanks(){
     const random=this.random,dummy=this.dummy,stones=[];
@@ -125,7 +126,7 @@ export class RiverGarden{
   }
   update(time){
     this.drift.forEach((d,i)=>{
-      const z=-24+(d.offset+time*d.speed)%69,x=riverCenter(z)+d.side+Math.sin(z*.5+i)*.08;
+      const z=-24+(d.offset+time*d.speed)%RIVER_LENGTH,x=riverCenter(z)+d.side+Math.sin(z*.5+i)*.08;
       this.dummy.position.set(x,.082,z);this.dummy.rotation.set(-Math.PI/2,0,Math.sin(z*.3)*.12);this.dummy.scale.set(.018,d.length,1);this.dummy.updateMatrix();this.glints.setMatrixAt(i,this.dummy.matrix);
     });this.glints.instanceMatrix.needsUpdate=true;
   }

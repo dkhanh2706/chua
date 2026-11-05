@@ -21,7 +21,7 @@
 .necklace-toggle{display:flex;align-items:center;justify-content:space-between;font-size:12px;color:#647851;min-height:45px}.necklace-toggle input{width:24px;height:24px;accent-color:#81986a}
 .custom-note{font-size:9px;line-height:1.8;color:#9aa38d;padding-bottom:18px;border-bottom:1px solid #e0e5d6;margin:8px 0 19px}.entry-fields .section-label{font-size:11px}.entry-fields #name{height:48px}.entry-fields .primary{height:49px;margin-top:18px;font-size:13px}.entry-fields #password-wrap{margin-top:15px}.entry-fields .form-error{margin-top:10px}.entry-fields .entry-note{font-size:9px}
 .joystick,.people-toggle,.settings-toggle,.look-hint{display:none}
-.battery-saver{position:absolute;right:26px;bottom:77px;border:1px solid #fff9;border-radius:8px;background:#faf8ede0;color:#6e805b;padding:8px 12px;font-size:9px;z-index:3}.battery-saver[aria-pressed=true]{background:#dce5cb}
+.quality-mode{position:absolute;right:26px;bottom:77px;border:1px solid #fff9;border-radius:8px;background:#faf8ede0;color:#6e805b;padding:8px 12px;font-size:9px;z-index:3}.quality-mode[aria-pressed=true]{background:#dce5cb}
 @media(max-width:800px), (pointer:coarse){
  body{overscroll-behavior-y:none}.topbar{height:78px;padding:0 20px}.brand{font-size:21px}.brand-note{font-size:7px;letter-spacing:2px}.brand-icon{font-size:38px}.top-right{gap:10px}.top-right .presence{display:none}.icon-button{width:44px;height:44px}
  .creator-home{margin:8px auto 25px;padding:0 18px;max-width:540px}.creator-heading{margin-bottom:18px}.creator-heading .eyebrow{font-size:7px;letter-spacing:2px}.creator-heading h1{font-size:28px;line-height:1.45;margin:8px 0;letter-spacing:-.8px}.creator-heading p{font-size:10px;line-height:1.8;max-width:310px}
@@ -37,23 +37,24 @@
  .joystick{display:block;position:absolute;bottom:calc(149px + env(safe-area-inset-bottom,0px));left:21px;width:116px;height:116px;border-radius:50%;border:1px solid #f7f5e4b0;background:radial-gradient(circle,#f4f4da65,#edf2d52b);backdrop-filter:blur(4px);z-index:4;touch-action:none;user-select:none;-webkit-user-select:none;box-shadow:0 5px 20px #5064310e}.joystick-thumb{position:absolute;left:50%;top:50%;height:48px;width:48px;border-radius:50%;border:1px solid #ffffedb0;background:#f5f5e1d9;box-shadow:0 3px 12px #6275481a;transform:translate(calc(-50% + var(--jx,0px)),calc(-50% + var(--jy,0px)));pointer-events:none}.joystick-cross{position:absolute;inset:0;display:grid;place-items:center;font:35px Georgia;color:#f8f8dd77;pointer-events:none}.joystick-caption{position:absolute;top:126px;left:0;right:0;text-align:center;font-size:7px;letter-spacing:1.2px;color:#f9f6d9;text-shadow:0 1px 6px #435b2f99;pointer-events:none}
  .settings-toggle{display:block;position:absolute;right:19px;bottom:calc(139px + env(safe-area-inset-bottom,0px));height:48px;width:48px;border:1px solid #fff9;border-radius:50%;background:#f5f5e1d9;backdrop-filter:blur(8px);color:#76875f;font-size:25px;z-index:5}.settings-toggle[aria-expanded=true]{background:#d8e4c4}
  .look-hint{display:block;position:absolute;right:18px;bottom:calc(199px + env(safe-area-inset-bottom,0px));font-size:9px;color:#f8f5d8;text-shadow:0 1px 6px #4b653b99;pointer-events:none}
- body.playing .camera-controls,body.playing .view-options,body.playing .battery-saver{display:none}
+ body.playing .camera-controls,body.playing .view-options,body.playing .quality-mode{display:none}
  body.playing.settings-open .camera-controls{display:grid;grid-template-columns:repeat(3,1fr);right:15px;bottom:calc(301px + env(safe-area-inset-bottom,0px));width:196px;padding:7px;gap:3px;background:#fcfaefef}.camera-controls button:nth-child(-n+3){grid-column:span 3;justify-content:flex-start;padding:0 10px}.camera-controls button{height:44px;min-height:44px;font-size:17px}.camera-controls button span{font-size:12px}
  body.playing.settings-open .view-options{display:flex;right:15px;bottom:calc(246px + env(safe-area-inset-bottom,0px));width:196px}.view-options button{height:46px;font-size:11px;width:100%;background:#fbf9eeef}
- body.playing.settings-open .battery-saver{display:block;right:15px;bottom:calc(192px + env(safe-area-inset-bottom,0px));height:46px;width:196px;font-size:11px;background:#fbf9eeef}body.playing.settings-open .battery-saver[aria-pressed=true]{background:#dde7ce}
+ body.playing.settings-open .quality-mode{display:block;right:15px;bottom:calc(192px + env(safe-area-inset-bottom,0px));height:46px;width:196px;font-size:11px;background:#fbf9eeef}body.playing.settings-open .quality-mode[aria-pressed=true]{background:#dde7ce}
  #mouse-look{display:none}#toast{bottom:calc(96px + env(safe-area-inset-bottom,0px));font-size:11px;padding:10px 17px;border-radius:12px;max-width:90%;width:max-content}dialog{max-height:calc(100dvh - 32px);overflow:auto;padding:25px}dialog p,dialog dd{font-size:12px}dialog dt{font-size:12px}.dialog-close{min-width:44px;min-height:44px}
 }
 @media(max-width:360px){.creator-home{padding:0 12px}.creator-heading h1{font-size:25px}.avatar-stage{height:285px}.part-tabs button{padding:0 6px}.color-field-row{gap:6px}.color-field-row>label{font-size:11px}.color-field .hex-color{width:86px}.people-toggle{font-size:0}.people-toggle span{font-size:11px}.stage-tag{max-width:210px}.joystick{left:16px;width:105px;height:105px}.joystick-caption{top:114px}}
 @media(max-width:360px){body.playing .game-heading h2,body.playing.first-person .game-heading h2{font-size:18px}body.playing .game-heading h2 span{display:none}.brand-note{letter-spacing:1.2px}.brand{font-size:19px}.topbar{padding:0 14px}.top-right{gap:5px}}
 @media(max-width:800px) and (min-height:700px) and (orientation:portrait){.avatar-pane{position:sticky;top:6px;z-index:2;box-shadow:0 6px 16px #40542e0c}.avatar-stage{height:clamp(220px,32dvh,285px)}}
-@media(max-height:550px) and (pointer:coarse){body.playing .game-heading,body.playing .stage-tag,.people-toggle{display:none}.joystick{bottom:105px;width:95px;height:95px}.joystick-caption{display:none}.settings-toggle{bottom:110px}.look-hint{display:none}body.playing.settings-open .camera-controls{bottom:175px;grid-template-columns:repeat(6,1fr);width:300px}.camera-controls button:nth-child(-n+3){grid-column:span 2}.camera-controls button:nth-last-child(-n+3){grid-column:span 2}body.playing.settings-open .view-options{right:220px;bottom:120px;width:150px}body.playing.settings-open .battery-saver{right:63px;bottom:120px;width:150px}}
+@media(max-height:550px) and (pointer:coarse){body.playing .game-heading,body.playing .stage-tag,.people-toggle{display:none}.joystick{bottom:105px;width:95px;height:95px}.joystick-caption{display:none}.settings-toggle{bottom:110px}.look-hint{display:none}body.playing.settings-open .camera-controls{bottom:175px;grid-template-columns:repeat(6,1fr);width:300px}.camera-controls button:nth-child(-n+3){grid-column:span 2}.camera-controls button:nth-last-child(-n+3){grid-column:span 2}body.playing.settings-open .view-options{right:220px;bottom:120px;width:150px}body.playing.settings-open .quality-mode{right:63px;bottom:120px;width:150px}}
 
 /* Phones are the primary controls: avoid blur compositing over every 3D frame. */
 @media(max-width:800px),(pointer:coarse){
- body.playing .controls,body.playing .camera-controls,body.playing .battery-saver,
+ body.playing .controls,body.playing .camera-controls,body.playing .quality-mode,
  body.playing .joystick,body.playing .settings-toggle,body.playing .yard-tools,
  body.playing .blessing-panel,body.playing #location-hint{backdrop-filter:none;-webkit-backdrop-filter:none}
  body.playing .controls{left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px));width:auto;transform:none}
+ body.playing .actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));width:100%}
  body.playing .actions kbd{display:none}
  body.playing .joystick{left:calc(16px + env(safe-area-inset-left,0px))}
  body.playing .settings-toggle{right:calc(18px + env(safe-area-inset-right,0px))}
@@ -71,6 +72,7 @@
  .topbar .top-right{gap:4px}.topbar .top-divider{display:none}
 }
 @media(max-height:550px) and (pointer:coarse){
+ body.playing .controls{left:auto;width:min(420px,calc(100% - 24px))}
  body.playing .game-heading{display:flex}
  body.playing .game-heading .text-button{top:calc(14px + env(safe-area-inset-top,0px));right:calc(184px + env(safe-area-inset-right,0px))}
 }

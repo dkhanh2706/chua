@@ -9,7 +9,7 @@ for(const mobile of [false,true])test(`lotus pond swims and supports meditation 
     await page.goto('/');await page.locator('#name').fill('Ho sen');await page.locator('#join-button').click();
     await page.evaluate(async mobile=>{
       const {TempleView}=await import('/scene3d.js');
-      await new Promise(resolve=>{const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){render.apply(this,args);window.pondQA=this;window.pondPlayer=args[1].find(p=>p.id===args[3]);resolve();};});
+      await new Promise(resolve=>{const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){render.apply(this,args);window.pondQA=this;window.pondPlayer=args[1].find(p=>p.id===args[3]);if(window.pondPlayer.action==='sit'&&window.pondPreviousAction!=='sit')window.pondSitHeading=this.models.get(args[3]).motionOutput.heading;window.pondPreviousAction=window.pondPlayer.action;resolve();};});
       window.pondQA.setMode('panorama');
       if(mobile)window.pondQA.zoomBy(1.5);
     },mobile);
@@ -23,6 +23,8 @@ for(const mobile of [false,true])test(`lotus pond swims and supports meditation 
       if(mobile)await page.touchscreen.tap(point.x,point.y);else await page.mouse.click(point.x,point.y);
       await expect.poll(()=>page.evaluate(()=>({x:Math.round(window.pondPlayer.x),y:Math.round(window.pondPlayer.y),action:window.pondPlayer.action})),{timeout:18000}).toEqual({x,y,action:'sit'});
       await expect(page.locator('#sit')).toHaveAttribute('aria-pressed','true');
+      await expect.poll(()=>page.evaluate(()=>window.pondQA.models.get(window.pondPlayer.id).motionOutput.sit)).toBe(1);
+      await expect.poll(()=>page.evaluate(()=>{const model=window.pondQA.models.get(window.pondPlayer.id),delta=model.root.rotation.y-window.pondSitHeading;return Math.abs(Math.atan2(Math.sin(delta),Math.cos(delta)));})).toBeLessThan(.03);
     }
     await expect.poll(()=>page.evaluate(()=>window.pondQA.models.get(window.pondPlayer.id).motionOutput.sit)).toBe(1);
     await page.evaluate(()=>{window.pondQA.setMode('overhead');window.pondQA.yaw=Math.PI;});

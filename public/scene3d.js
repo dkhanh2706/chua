@@ -8,6 +8,8 @@ import { YardCare } from './yard-care.mjs';
 import { LotusPond } from './lotus-pond.mjs';
 import {RIGHT_HAND,broomStrike,applyRightHandStrike} from './broom-motion.mjs';
 import {IncenseSmoke} from './incense-smoke.mjs';
+import {GardenBoundary} from './garden-boundary.mjs';
+import {buildRoofFrame} from './roof-frame.mjs';
 
 const { WORLD, URN, riverX, groundHeight } = window;
 const TAU=Math.PI*2;
@@ -77,36 +79,34 @@ export class TempleView {
   constructor(canvas){
     this.canvas=canvas;this.mode='panorama';this.yaw=0;this.pitch=.76;this.zoom=1;this.active=false;this.models=new Map();this.incense=new Map();this.smoke=[];this.roofs=[];this.leaves=[];this.look=new THREE.Vector3(0,0,5);this.ray=new THREE.Raycaster();this.plane=new THREE.Plane(new THREE.Vector3(0,1,0),0);this.lastTime=0;this.ready=false;
     this.mobile=window.matchMedia('(pointer: coarse)').matches||window.innerWidth<800;
-    this.mobilePixelLimit=navigator.deviceMemory&&navigator.deviceMemory<=4?1:1.2;
-    this.batterySaver=this.mobile;try{const saved=localStorage.getItem('temple-battery-saver');if(saved!==null)this.batterySaver=saved==='true';}catch{}
-    this.renderer=new THREE.WebGLRenderer({canvas,antialias:!this.mobile,powerPreference:this.mobile?'low-power':'default'});this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,this.batterySaver?this.mobilePixelLimit:1.6));this.renderer.shadowMap.enabled=!this.batterySaver;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;
+    this.targetFPS=60;
+    this.quality='balanced';try{const saved=localStorage.getItem('temple-visual-quality');if(['balanced','high'].includes(saved))this.quality=saved;}catch{}
+    this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});this.renderer.setPixelRatio(this.pixelRatioForViewport());this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.autoUpdate=!this.mobile;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;
     if(typeof ResizeObserver!=='undefined'){this.resizeObserver=new ResizeObserver(([entry])=>{this.canvasSize=entry.contentRect;});this.resizeObserver.observe(canvas);}
     this.studio=new AvatarStudio(this.renderer);
     this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#d7e2d1');this.scene.fog=new THREE.Fog('#d7e2d1',95,210);
     this.camera=new THREE.PerspectiveCamera(47,1,.2,350);this.camera.position.set(0,66,68);this.camera.lookAt(this.look);
     this.scene.add(this.camera);
-    this.daylight=new THREE.HemisphereLight('#fff5df','#778762',2.5);this.scene.add(this.daylight);const sun=new THREE.DirectionalLight('#ffdfac',3.1);sun.position.set(-35,65,25);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-65;sun.shadow.camera.right=65;sun.shadow.camera.top=65;sun.shadow.camera.bottom=-65;sun.shadow.normalBias=.06;sun.shadow.bias=-.0003;sun.shadow.camera.far=150;this.sunlight=sun;this.scene.add(sun);this.scene.add(sun.target);
-    this.worldRoot=group(this.scene);this.worldBuilt=false;this.canvas.dataset.renderer='webgl';this.canvas.dataset.cameraMode=this.mode;
+    this.daylight=new THREE.HemisphereLight('#fff5df','#778762',2.5);this.scene.add(this.daylight);const sun=new THREE.DirectionalLight('#ffdfac',3.1);sun.position.set(-35,65,25);sun.castShadow=true;sun.shadow.mapSize.set(this.mobile?1024:2048,this.mobile?1024:2048);sun.shadow.camera.left=-65;sun.shadow.camera.right=65;sun.shadow.camera.top=65;sun.shadow.camera.bottom=-65;sun.shadow.normalBias=.06;sun.shadow.bias=-.0003;sun.shadow.camera.far=150;this.sunlight=sun;this.scene.add(sun);this.scene.add(sun.target);
+    this.worldRoot=group(this.scene);this.worldBuilt=false;this.canvas.dataset.renderer='webgl';this.canvas.dataset.cameraMode=this.mode;this.canvas.dataset.qualityMode=this.quality;
     canvas.addEventListener('webglcontextlost',event=>{event.preventDefault();this.ready=false;canvas.dispatchEvent(new CustomEvent('render-error'));});
     canvas.addEventListener('webglcontextrestored',()=>{this.ready=true;this.studio.dirty=true;this.width=0;});
     this.ready=true;
   }
   buildWorld(){
     const s=this.worldRoot;let seed=917;const random=()=>{seed=seed*16807%2147483647;return(seed-1)/2147483646;};
-    box(s,0,-.7,0,114,1.4,88,'#95a778');
+    box(s,0,-.7,-17,113.2,1.4,123.2,'#83ac76');
     const grass=[];for(let i=0;i<700;i++){const x=random()*106-53,z=random()*78-39;if(Math.abs(x)<46&&z>-22&&z<30)continue;grass.push({p:[x,.012,z],s:[.12+random()*.22,.03,.14+random()*.35],r:[0,random()*TAU,0]});}instances(s,boxGeo,mat('#acb78b'),grass);
     // Forested mountain silhouettes and a warm sun beyond the garden.
-    for(let i=0;i<14;i++){const mountain=mesh(s,new THREE.ConeGeometry(13+random()*14,20+random()*25,6),mat(i%2?'#9fb29b':'#afbfaa'),(i-7)*17,-1,-75-random()*35);mountain.rotation.y=random();mountain.castShadow=false;}
+    for(let i=0;i<14;i++){const mountain=mesh(s,new THREE.ConeGeometry(13+random()*14,20+random()*25,6),mat(i%2?'#9fb29b':'#afbfaa'),(i-7)*17,-1,-118-random()*24);mountain.name='distant-mountain-backdrop';mountain.rotation.y=random();mountain.castShadow=false;}
     const sun=ball(s,-46,48,-105,7,7,3,'#fff1c9');sun.material=new THREE.MeshBasicMaterial({color:'#fff1c9'});
 
     this.landscape=new GardenLandscape(s);
     this.pond=new LotusPond(s);
     this.buildTemple();this.buildUrn();
-    // Boundary walls are broken at the entrance and the stream.
-    for(const [x,width] of [[-29,37],[15,9],[39,17]]){box(s,x,1,31.5,width,2,1,'#cfcaad');box(s,x,2.15,31.5,width+.5,.28,1.4,'#6e816a');}
-    for(const x of [-48,48]){box(s,x,1,0,1,2,62,'#c9c8ab');box(s,x,2.12,0,1.4,.25,62,'#788a6e');}
-    // Keep the waterfall outlet open through the rear boundary.
-    for(const [x,width] of [[-33,27],[22.5,6],[41.5,10]]){box(s,x,1,-24,width,2,1,'#c5c4a4');box(s,x,2.15,-24,width,.3,1.4,'#76886b');}
+    this.boundary=new GardenBoundary(s);
+    const entryTiles=[];for(let row=0;row<7;row++)for(let column=0;column<8;column++)entryTiles.push({p:[-7+column*2,-.045,31+row*2],s:[1.94,.12,1.94]});
+    instances(s,boxGeo,mat('#d2c8ae'),entryTiles).name='finished-entrance-path';
     // The entrance gate frames the first steps into the courtyard.
     for(const x of [-8,8]){
       // Chân cột cổng: đế vuông rồi đế tròn
@@ -122,8 +122,8 @@ export class TempleView {
     beam(s,[-8,7.3,30.7],[8,7.3,30.7],.2,'#7a4a28');
     // Mảng tường cổng bên trên xà
     box(s,0,7.3,30.7,16.4,.06,1.2,'#c8bfa5');
-    this.gateRoof=roof(s,0,30.7,21,7,7.3,2.9,'#526d58');this.gateRoof.traverse(o=>{if(o.material)o.material=o.material.clone();});
-    this.garden=new TempleGarden(s,{batterySaver:this.batterySaver,groundHeight});
+    this.gateRoof=roof(s,0,30.7,21,7,7.3,2.9,'#526d58');buildRoofFrame(this.gateRoof,{width:21,depth:7,base:7.3,height:2.9,columnTop:7.38,columns:[{x:-8,z:0},{x:8,z:0}],plateWidth:16.8});this.gateRoof.traverse(o=>{if(o.material)o.material=o.material.clone();});
+    this.garden=new TempleGarden(s,{batterySaver:this.mobile&&this.quality==='balanced',groundHeight});
     this.yardCare=new YardCare(s,this.garden,groundHeight);
     // Incense target ring appears when the player chooses a destination.
     this.destination=mesh(s,new THREE.RingGeometry(.45,.55,40),new THREE.MeshBasicMaterial({color:'#fff1bc',transparent:true,opacity:.8,side:THREE.DoubleSide}),0,.2,0);this.destination.rotation.x=-Math.PI/2;this.destination.visible=false;
@@ -134,7 +134,10 @@ export class TempleView {
     const upper=group(s);
     box(upper,0,13.2,-17.5,23,5,12,'#a88b65');
     for(const x of [-10,-6,6,10])for(const z of [-11.4,-23.6])box(upper,x,13.2,z,.3,4.7,.35,'#67432d');
-    this.roofs.push(roof(s,0,-17.5,45,28,10.4,5,'#506e5e'),upper,roof(s,0,-17.5,29,18,15.9,4,'#52745f'),this.interior.ceiling);
+    const mainRoof=roof(s,0,-17.5,45,28,10.4,5,'#506e5e'),upperRoof=roof(s,0,-17.5,29,18,15.9,4,'#52745f');
+    buildRoofFrame(mainRoof,{width:45,depth:28,base:10.4,height:5,columnTop:10.07,columns:window.HALL_COLUMNS.map(c=>({x:(c.x-500)/10,z:(c.y-350)/10+17.5})),plateWidth:38.8});
+    buildRoofFrame(upperRoof,{width:29,depth:18,base:15.9,height:4,columnTop:15.55,columns:[-10,-6,6,10].flatMap(x=>[-6.1,6.1].map(z=>({x,z}))),plateWidth:23});
+    this.roofs.push(mainRoof,upper,upperRoof,this.interior.ceiling);
     this.roofs.forEach(g=>g.traverse(o=>{if(o.material){o.material=o.material.clone();o.userData.roof=true;}}));
   }
   buildUrn(){
@@ -150,22 +153,42 @@ export class TempleView {
     this.incenseSmoke=new IncenseSmoke(g);
   }
   setActive(active){this.active=active;this.width=0;this.studio.width=0;this.studio.dirty=true;this.look.set(0,0,active?8:0);this.setMode(active?'overhead':'panorama');if(active){if(!this.worldBuilt){this.buildWorld();this.worldBuilt=true;}this.resetCamera();}}
-  setBatterySaver(enabled){this.batterySaver=enabled;this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,enabled?this.mobilePixelLimit:1.6));this.renderer.shadowMap.enabled=!enabled;this.renderer.shadowMap.needsUpdate=true;this.studio.dirty=true;this.garden?.setQuality(enabled);this.canvas.dataset.batterySaver=String(enabled);}
+  pixelRatioForViewport(){
+    const size=this.canvasSize||{width:window.innerWidth,height:window.innerHeight};
+    return Math.min(window.devicePixelRatio,this.quality==='high'?1.8:1.5,Math.sqrt((this.mobile?2000000:4000000)/Math.max(1,size.width*size.height)));
+  }
+  setQuality(quality){
+    if(!['balanced','high'].includes(quality))return;
+    this.quality=quality;this.renderer.setPixelRatio(this.pixelRatioForViewport());this.renderer.shadowMap.needsUpdate=true;this.lastShadowUpdate=-Infinity;this.studio.dirty=true;this.garden?.setQuality(this.mobile&&quality==='balanced');this.canvas.dataset.qualityMode=quality;
+  }
+  updateShadows(pos,time,players){
+    if(!this.mobile)return;
+    const animated=players.some(p=>p.moving||p.action==='bow'||['sit_down','sit_up'].includes(this.models.get(p.id)?.motionOutput.name)||time-(p.hitStart??-100)<.65||time-(p.struckStart??-100)<.65||time-(p.sweepStart??-100)<.9);
+    const interval=animated?0:1/12;
+    if(time-(this.lastShadowUpdate??-Infinity)<interval)return;
+    this.lastShadowUpdate=time;
+    const wide=this.mode==='panorama',extent=wide?65:this.mode==='follow'?36:24,x=wide?0:pos.x,z=wide?0:pos.z;
+    this.sunlight.position.set(x-35,65,z+25);this.sunlight.target.position.set(x,0,z);
+    const camera=this.sunlight.shadow.camera;
+    if(camera.right!==extent){camera.left=-extent;camera.right=extent;camera.top=extent;camera.bottom=-extent;camera.updateProjectionMatrix();}
+    this.renderer.shadowMap.needsUpdate=true;
+  }
   renderCreator(appearance){if(!this.ready)return;this.studio.setAppearance(appearance);this.studio.render(this.canvas,this.canvasSize);}
   setMode(mode){if(!['overhead','panorama','follow'].includes(mode))return;this.mode=mode;this.zoom=1;this.pitch=mode==='overhead'?.55:mode==='follow'?.61:.76;this.cameraNeedsSnap=true;this.canvas.dataset.cameraMode=mode;}
   resetCamera(){this.yaw=0;this.zoom=1;this.pitch=this.mode==='overhead'?.55:this.mode==='follow'?.61:.76;this.cameraNeedsSnap=true;}
   orbit(dx,dy){this.yaw-=dx*.006;this.pitch=THREE.MathUtils.clamp(this.pitch+dy*.004,this.mode==='overhead'?-.4:.28,1.15);}
   zoomBy(factor){this.zoom=THREE.MathUtils.clamp(this.zoom*factor,this.mode==='overhead'?.8:.55,1.6);}
   movement(dx,dy){return {x:dx*Math.cos(this.yaw)+dy*Math.sin(this.yaw),y:-dx*Math.sin(this.yaw)+dy*Math.cos(this.yaw)};}
-  pick(clientX,clientY){const rect=this.canvas.getBoundingClientRect();this.ray.setFromCamera(new THREE.Vector2((clientX-rect.left)/rect.width*2-1,-(clientY-rect.top)/rect.height*2+1),this.camera);const hit=new THREE.Vector3();if(!this.ray.ray.intersectPlane(this.plane,hit))return null;let x=hit.x*10+500,y=hit.z*10+350;const height=groundHeight(x,y);if(height){this.ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-height),hit);x=hit.x*10+500;y=hit.z*10+350;}return{x,y};}
+  pick(clientX,clientY){const rect=this.canvas.getBoundingClientRect();this.ray.setFromCamera(new THREE.Vector2((clientX-rect.left)/rect.width*2-1,-(clientY-rect.top)/rect.height*2+1),this.camera);const sofa=this.interior&&this.ray.intersectObject(this.interior.seats,true)[0];if(sofa){const x=sofa.point.x*10+500,y=sofa.point.z*10+350,seat=window.sofaSeatAt(x,y);if(seat)return{x:seat.x,y:seat.y,sofaSeatId:seat.id};}const hit=new THREE.Vector3();if(!this.ray.ray.intersectPlane(this.plane,hit))return null;let x=hit.x*10+500,y=hit.z*10+350;const height=groundHeight(x,y);if(height){this.ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-height),hit);x=hit.x*10+500;y=hit.z*10+350;}return{x,y};}
   project(x,y){const v=position(x,y).add(new THREE.Vector3(0,.1,0)).project(this.camera),rect=this.canvas.getBoundingClientRect();return{x:rect.left+(v.x+1)*rect.width/2,y:rect.top+(1-v.y)*rect.height/2};}
   syncPlayers(players,myId,t,dt){
     const ids=new Set(players.map(p=>p.id));for(const[id,m]of this.models)if(!ids.has(id)){disposeAvatar(m);this.models.delete(id);}
     for(const p of players){
       const appearance=window.AvatarConfig.normalize(p.avatar,p.character,p.color),signature=JSON.stringify(appearance);
       let model=this.models.get(p.id);
-      if(!model||model.signature!==signature){if(model)disposeAvatar(model);model=createGameAvatar(this.worldRoot,{...p,avatar:appearance,isMe:p.id===myId});this.models.set(p.id,model);}
+      if(!model||model.signature!==signature){if(model)disposeAvatar(model);model=createGameAvatar(this.worldRoot,{...p,avatar:appearance,isMe:p.id===myId});model.root.position.copy(position(p.x,p.y,t));this.models.set(p.id,model);}
       const pos=position(p.x,p.y,t),dx=pos.x-model.root.position.x,dz=pos.z-model.root.position.z;
+      if(p.sofaSeatId)pos.y=window.SOFA_SEAT_HEIGHT;
       poseAvatar(model,p,t,dt);
       if(p.hasBroom&&p.action==='stand'){
         const progress=THREE.MathUtils.clamp((t-(p.sweepStart??-100))/.9,0,1),swing=Math.sin(progress*Math.PI);
@@ -174,11 +197,12 @@ export class TempleView {
       const strike=broomStrike(t,p.hitStart),striking=!!strike;
       if(strike)applyRightHandStrike(model,strike);
       const struckAge=t-(p.struckStart??-100);if(struckAge>=0&&struckAge<.65)model.body.rotation.z+=Math.sin(struckAge/.65*Math.PI)*.16;
-      model.heading=p.action==='bow'||p.action==='sit'?Math.PI:model.motionOutput.heading;
+      model.heading=p.action==='bow'?Math.PI:model.motionOutput.heading;
+      if(p.sofaSeatId)model.heading=window.SOFA_SEATS.find(s=>s.id===p.sofaSeatId)?.heading??model.heading;
       if(striking)model.heading=p.hitHeading??model.heading;
       const delta=THREE.MathUtils.euclideanModulo(model.heading-model.root.rotation.y+Math.PI,TAU)-Math.PI;
       model.root.rotation.y+=delta*Math.min(1,dt*12);
-      model.root.position.set(pos.x,pos.y+model.postureOffset,pos.z);
+      if(model.seatedOnSofa)model.root.position.lerp(pos.clone().add(new THREE.Vector3(0,model.postureOffset,0)),1-Math.exp(-dt*14));else model.root.position.set(pos.x,pos.y+model.postureOffset,pos.z);
       if(p.id===myId&&model.motionOutput.stepCount>(model.playedSteps||0)){
         const bridge=p.y>475&&p.y<535&&Math.abs(p.x-riverX(p.y))<62;
         const stone=p.x>350&&p.x<650||p.y<293&&p.x>330&&p.x<670;
@@ -195,11 +219,11 @@ export class TempleView {
     for(const item of items){let g=this.incense.get(item.id);if(!g){g=group(this.urn,-1.2+(item.slot%6)*.46,1.46,(Math.floor(item.slot/6)-.5)*.6);g.userData.stick=cylinder(g,0,.8,0,.025,.025,1.6,'#ab6d4e',6);g.userData.ember=ball(g,0,1.6,0,.055,.06,.055,'#e79557');g.userData.ember.material=mat('#e79a5a',{emissive:'#ff7d35',emissiveIntensity:2});this.incense.set(item.id,g);}
       const length=.25+Math.max(0,(item.end-now)/300000)*.85;g.userData.stick.scale.y=length/1.6;g.userData.stick.position.y=length/2;g.userData.ember.position.y=length;
     }
-    this.incenseSmoke.update(items,t,this.batterySaver,now);
+    this.incenseSmoke.update(items,t,now);
   }
   render(time,players,items,myId,target){
-    if(!this.ready||!this.active||document.hidden)return;if(this.batterySaver&&time-(this.lastRendered||0)<1/30-.0015)return;this.lastRendered=time;const dt=Math.min(.05,Math.max(.001,time-this.lastTime));this.lastTime=time;
-    const rect=this.canvasSize||this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;const width=Math.round(rect.width),height=Math.round(rect.height);if(width!==this.width||height!==this.height){this.width=width;this.height=height;this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();}
+    if(!this.ready||!this.active||document.hidden)return;this.lastRendered=time;const dt=Math.min(.05,Math.max(.001,time-this.lastTime));this.lastTime=time;
+    const rect=this.canvasSize||this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;const width=Math.round(rect.width),height=Math.round(rect.height);if(width!==this.width||height!==this.height){this.width=width;this.height=height;this.renderer.setPixelRatio(this.pixelRatioForViewport());this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();}
     this.syncPlayers(players,myId,time,dt);this.syncIncense(items,time);
     const me=players.find(p=>p.id===myId),pos=me?position(me.x,me.y,time):new THREE.Vector3();
     const close=this.mode==='overhead',wide=this.mode==='panorama'||!this.active;
@@ -229,6 +253,7 @@ export class TempleView {
     this.garden.update(time);
     this.yardCare.update(time,players,this.models,myId,false);
     this.destination.visible=!!target;if(target){const pos=position(target.x,target.y);this.destination.position.copy(pos).add(new THREE.Vector3(0,.18,0));this.destination.scale.setScalar(1+Math.sin(time*4)*.12);}
+    this.updateShadows(pos,time,players);
     this.renderer.render(this.scene,this.camera);
   }
 }

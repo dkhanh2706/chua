@@ -38,7 +38,7 @@ export function buildTempleInterior(parent){
   box(root,0,5.5,-26.42,11.8,7.7,.15,'#493527');
   for(const x of [-6.1,6.1])box(root,x,5.5,-26.2,.18,8,.18,trim);
   for(const y of [1.55,9.45])box(root,0,y,-26.2,12.4,.15,.18,trim);
-  for(const x of [-17,-12,12,17])for(const z of [-9,-25.5]){
+  for(const column of window.HALL_COLUMNS){const x=(column.x-500)/10,z=(column.y-350)/10;
     cyl(root,x,1.35,z,.55,.62,.3,'#9f8969');cyl(root,x,5.7,z,.3,.38,8.4,wood);cyl(root,x,9.92,z,.55,.4,.3,trim);
   }
   // A closed, ordered ceiling hides the roof structure from eye level.
@@ -56,8 +56,8 @@ export function buildTempleInterior(parent){
   }
   upholstery.computeVertexNormals();
   const padded=(p,x,y,z,w,h,d,c)=>part(p,upholstery,c,x,y,z,w,h,d,{roughness:.98});
-  for(const x of [-9,9])for(const z of [-11.3,-16]){
-    const sofa=new THREE.Group();sofa.name='three-seat-sofa';sofa.position.set(x,0,z);seats.add(sofa);
+  for(const spec of window.SOFA_LAYOUT){const x=(spec.x-500)/10,z=(spec.y-350)/10;
+    const sofa=new THREE.Group();sofa.name='three-seat-sofa';sofa.userData.sofaId=spec.id;sofa.position.set(x,1.2*(1-window.SOFA_SCALE_Y),z);sofa.scale.y=window.SOFA_SCALE_Y;seats.add(sofa);
     for(const sx of [-2.45,2.45])for(const sz of [-.87,.87])box(sofa,sx,1.34,sz,.2,.28,.2,wood);
     padded(sofa,0,1.59,0,5.9,.36,2.45,'#665744');
     padded(sofa,0,2.3,1.02,5.9,1.35,.4,'#8c7c64');

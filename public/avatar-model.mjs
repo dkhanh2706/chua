@@ -134,7 +134,9 @@ export function createAvatar(appearance){
     const lower=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(-side*.95,side*.16,.27).normalize());
     return{upper,elbow:upper.clone().invert().multiply(lower)};
   });
-  const result={root,body,head,shirt,hair,eyes,arms,elbows,wrists,legs,knees,ankles,seatedLegs,seatedArms,footMeshes,footMatrix:new THREE.Matrix4(),inverseRoot:new THREE.Matrix4(),heldIncense,shadow,motion:createAvatarMotion(seed),appearance:a,signature:JSON.stringify(a),heading:Math.PI,geometries,materials};
+  const sofaLegs=[-1,1].map(side=>{const upper=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(side*.08,-.1,.99).normalize());return{upper,knee:upper.clone().invert(),ankle:new THREE.Quaternion()};});
+  const sofaArms=[-1,1].map(side=>({upper:new THREE.Quaternion().setFromEuler(new THREE.Euler(-.22,0,-side*.5)),elbow:new THREE.Quaternion().setFromEuler(new THREE.Euler(-1.15,0,0))}));
+  const result={root,body,head,shirt,hair,eyes,arms,elbows,wrists,legs,knees,ankles,seatedLegs,seatedArms,sofaLegs,sofaArms,footMeshes,footMatrix:new THREE.Matrix4(),inverseRoot:new THREE.Matrix4(),heldIncense,shadow,motion:createAvatarMotion(seed),appearance:a,signature:JSON.stringify(a),heading:Math.PI,geometries,materials};
   poseAvatar(result,{action:'stand'},0,1);
   result.motion.nextBlink=null;
   return result;
@@ -143,6 +145,7 @@ export function createAvatar(appearance){
 export function poseAvatar(model,player,time,dt){
   const motion=advanceAvatarMotion(model.motion,player,time,dt);model.motionOutput=motion;
   const {sit,bow,prayer,incense,reach,moveBlend,phase,breath}=motion;
+  model.seatedOnSofa=!!player.sofaSeatId||!!model.seatedOnSofa&&sit>0;
   const damp=(value,target)=>THREE.MathUtils.damp(value,target,22,Math.min(dt,.1));
   model.body.position.y=.72+breath*.007*(1-bow);
   model.body.rotation.x=damp(model.body.rotation.x,bow*1.12-moveBlend*.035);
@@ -156,12 +159,13 @@ export function poseAvatar(model,player,time,dt){
   model.arms.forEach((arm,i)=>{
     const side=i===0?-1:1,swing=Math.sin(phase+i*Math.PI)*moveBlend;
     arm.rotation.set(.04+swing*.4*(1-clasp)-prayer*.94-incense*.65+reach*.2,0,-side*(.08+prayer*.8-reach*.12));
-    arm.quaternion.slerp(model.seatedArms[i].upper,sit);
-    model.elbows[i].rotation.set(-.1-prayer*.5-incense*.1,0,0);model.elbows[i].quaternion.slerp(model.seatedArms[i].elbow,sit);
+    const armPose=model.seatedOnSofa?model.sofaArms[i]:model.seatedArms[i];
+    arm.quaternion.slerp(armPose.upper,sit);
+    model.elbows[i].rotation.set(-.1-prayer*.5-incense*.1,0,0);model.elbows[i].quaternion.slerp(armPose.elbow,sit);
     model.wrists[i].rotation.y=damp(model.wrists[i].rotation.y,side*clasp*.4);
   });
   model.legs.forEach((leg,i)=>{
-    const swing=Math.sin(phase+i*Math.PI)*moveBlend,seat=model.seatedLegs[i];
+    const swing=Math.sin(phase+i*Math.PI)*moveBlend,seat=(model.seatedOnSofa?model.sofaLegs:model.seatedLegs)[i];
     leg.rotation.set(-swing*.48-bow*.3,0,0);leg.quaternion.slerp(seat.upper,sit);
     model.knees[i].rotation.set(.04+Math.max(0,swing)*.42+bow*.65,0,0);model.knees[i].quaternion.slerp(seat.knee,sit);
     model.ankles[i].quaternion.identity().slerp(seat.ankle,sit);
@@ -170,7 +174,7 @@ export function poseAvatar(model,player,time,dt){
   // planted foot stays on the floor instead of clipping when knees bend.
   model.root.updateMatrixWorld(true);model.inverseRoot.copy(model.root.matrixWorld).invert();let floor=Infinity;
   for(const foot of model.footMeshes){model.footMatrix.multiplyMatrices(model.inverseRoot,foot.matrixWorld);const e=model.footMatrix.elements;floor=Math.min(floor,e[13]-Math.hypot(e[1],e[5],e[9]));}
-  model.postureOffset=-floor;
+  model.postureOffset=model.seatedOnSofa?THREE.MathUtils.lerp(-floor,-.595,sit):-floor;
   model.shadow.position.y=.012-model.postureOffset;model.shadow.scale.set(1+sit*.3,1+sit*.3,1);
   model.heldIncense.visible=incense>.03&&motion.progress<.84;
   model.heldIncense.position.set(0,.65+incense*.2-reach*.22,.58+reach*.3);

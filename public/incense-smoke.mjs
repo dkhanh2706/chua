@@ -14,8 +14,8 @@ export class IncenseSmoke{
     this.mesh=new THREE.InstancedMesh(geometry,material,60);this.mesh.name='shared-incense-smoke';this.mesh.count=0;this.mesh.frustumCulled=false;
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);this.opacity.setUsage(THREE.DynamicDrawUsage);this.dummy=new THREE.Object3D();parent.add(this.mesh);
   }
-  update(items,time,batterySaver,now){
-    const count=batterySaver?3:5;let index=0;
+  update(items,time,now){
+    const count=5;let index=0;
     for(const item of items){
       const length=.25+Math.max(0,(item.end-now)/300000)*.85;
       for(let i=0;i<count;i++){
