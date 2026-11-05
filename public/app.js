@@ -6,13 +6,13 @@ import { easeVelocity } from './locomotion.mjs';
   const sound=new TempleSound();
   let muted=false;try{muted=localStorage.getItem('temple-muted')==='true';}catch{}
   let socket=null,myId=null,active=false,joining=false;
-  let target=null,lastFrame=performance.now(),lastSent=0,lastPosition=null,localBowUntil=0,lastIncense=0,lastHit=-Infinity;
+  let target=null,lastFrame=performance.now(),lastSent=0,lastPosition=null,localBowUntil=0,incensePending=false,lastHit=-Infinity;
   let toastTimer,pendingJoin,joinTimer,uiTimer=0;
   const players=new Map(),items=new Map(),keys=new Set(),leafPatches=new Map();
   const {nearestRack,nearestLeaves,SWEEP_DURATION,HIT_DURATION,HIT_COOLDOWN}=window.TempleSweeping;
-  const joystickInput={x:0,y:0,pointer:null};
+  const joystickInput={x:0,y:0,pointer:null,bounds:null};
   const velocity={x:0,y:0};
-  function clearMovement(immediate=true){keys.clear();joystickInput.x=0;joystickInput.y=0;joystickInput.pointer=null;if(immediate){velocity.x=0;velocity.y=0;}$('joystick').style.setProperty('--jx','0px');$('joystick').style.setProperty('--jy','0px');}
+  function clearMovement(immediate=true){keys.clear();joystickInput.x=0;joystickInput.y=0;joystickInput.pointer=null;joystickInput.bounds=null;if(immediate){velocity.x=0;velocity.y=0;}$('joystick').style.setProperty('--jx','0px');$('joystick').style.setProperty('--jy','0px');}
   const gameCanvas=$('canvas'),previewHost=$('preview').parentElement,gameHost=gameCanvas.parentElement;
   $('preview').replaceWith(gameCanvas);
   let view;
@@ -49,7 +49,7 @@ import { easeVelocity } from './locomotion.mjs';
     socket.on('presence',p=>presence(p.online));
     socket.on('joined',data=>{
       myId=data.id;players.clear();items.clear();for(const p of data.players)players.set(p.id,{...p,tx:p.x,ty:p.y});for(const item of data.incense)items.set(item.id,{...item,end:performance.now()+item.ttl});
-      active=true;setJoining(false);target=null;clearMovement();lastPosition=null;localBowUntil=0;lastIncense=0;lastHit=-Infinity;
+      active=true;setJoining(false);target=null;clearMovement();lastPosition=null;localBowUntil=0;incensePending=false;lastHit=-Infinity;
       gameHost.prepend(gameCanvas);document.body.classList.add('playing');view.setActive(true);setCamera('overhead');
       leafPatches.clear();for(const patch of data.leaves||[])leafPatches.set(patch.id,{...patch,readyAt:performance.now()+patch.readyIn});
       view.yardCare.setPatches([...leafPatches.values()]);updateYardUI(players.get(myId),performance.now());
@@ -60,7 +60,7 @@ import { easeVelocity } from './locomotion.mjs';
     socket.on('player-joined',p=>{players.set(p.id,{...p,tx:p.x,ty:p.y});updatePeople();toast(`${p.name} vừa ghé vào sân chùa.`);});
     socket.on('player-left',p=>{players.delete(p.id);updatePeople();});
     socket.on('state',state=>{let change=false;for(const p of state){const current=players.get(p.id);if(!current)continue;const oldAction=current.action;current.tx=p.x;current.ty=p.y;if(p.id!==myId){current.action=p.action;current.moving=Math.hypot(current.x-p.x,current.y-p.y)>1;}else if(performance.now()>=localBowUntil&&current.action==='bow'&&p.action==='stand')current.action='stand';if(oldAction!==current.action)change=true;}if(change)updatePeople();});
-    socket.on('incense-added',i=>{items.set(i.id,{...i,end:performance.now()+i.ttl});const p=players.get(i.owner);if(p){p.ritual={kind:'incense',start:performance.now(),fromSit:p.action==='sit'};p.action='bow';if(i.owner===myId){lastIncense=performance.now();localBowUntil=performance.now()+1500;target=null;clearMovement();}sound.bell(Math.hypot((players.get(myId)?.x||500)-URN.x,(players.get(myId)?.y??URN.y)-URN.y));}updatePeople();toast(i.owner===myId?'Một nén hương, một chút lòng thành.':'Một nén hương vừa được thắp.');});
+    socket.on('incense-added',i=>{items.set(i.id,{...i,end:performance.now()+i.ttl});const p=players.get(i.owner);if(p){p.ritual={kind:'incense',start:performance.now(),fromSit:p.action==='sit'};p.action='bow';if(i.owner===myId){incensePending=false;localBowUntil=performance.now()+1500;target=null;clearMovement();}sound.bell(Math.hypot((players.get(myId)?.x||500)-URN.x,(players.get(myId)?.y??URN.y)-URN.y));}updatePeople();toast(i.owner===myId?'Một nén hương, một chút lòng thành.':'Một nén hương vừa được thắp.');});
     socket.on('incense-removed',i=>{items.delete(i.id);updatePeople();});
     socket.on('broom-changed',data=>{
       const p=players.get(data.id);if(!p)return;p.hasBroom=data.hasBroom;
@@ -85,8 +85,8 @@ import { easeVelocity } from './locomotion.mjs';
       else if(data.targetId===myId)toast(`${p.name} vừa đánh chổi · Người đánh mất 1 phước lành`);
     });
     socket.on('hit-error',code=>toast({broom:'Bạn cần cầm chổi trước.',busy:'Đợi hoàn thành động tác nhé.',cooldown:'Chờ một chút trước khi vung tiếp.',direction:'Hãy quay về hướng muốn vung chổi.'}[code]||'Chưa thể vung chổi.'));
-    socket.on('incense-error',code=>toast({far:'Lại gần lư hương trong chính điện nhé.',cooldown:'Chờ 10 giây giữa hai lần thắp hương nhé.',limit:'Bạn đang có 3 nén hương. Hãy đợi hương tàn.',full:'Lư hương đã đầy. Hãy đợi một chút nhé.'}[code]||'Chưa thể thắp nhang.'));
-    socket.on('disconnect',reason=>{clearMovement();target=null;if(active){active=false;$('connection-dialog').showModal();}if(joining){setJoining(false);$('join-error').textContent='Kết nối bị gián đoạn. Bạn thử vào lại nhé.';}});
+    socket.on('incense-error',code=>{incensePending=false;toast({far:'Lại gần lư hương trong chính điện nhé.',busy:'Hoàn thành động tác rồi cắm nén tiếp theo nhé.',limit:'Bạn đang có 3 nén hương. Hãy đợi hương tàn.',full:'Lư hương đã đầy. Hãy đợi một chút nhé.'}[code]||'Chưa thể thắp nhang.');});
+    socket.on('disconnect',reason=>{incensePending=false;clearMovement();target=null;if(active){active=false;$('connection-dialog').showModal();}if(joining){setJoining(false);$('join-error').textContent='Kết nối bị gián đoạn. Bạn thử vào lại nhé.';}});
     socket.on('connect_error',()=>{if(joining){setJoining(false);$('join-error').textContent='Chưa kết nối được với sân chùa. Bạn thử lại nhé.';}});
   }
   function join(){
@@ -111,11 +111,11 @@ import { easeVelocity } from './locomotion.mjs';
   const stick=$('joystick');
   function moveStick(e){
     if(joystickInput.pointer!==e.pointerId)return;
-    const rect=stick.getBoundingClientRect(),radius=rect.width*.33;let dx=e.clientX-rect.left-rect.width/2,dy=e.clientY-rect.top-rect.height/2;
+    const rect=joystickInput.bounds||stick.getBoundingClientRect(),radius=rect.width*.33;let dx=e.clientX-rect.left-rect.width/2,dy=e.clientY-rect.top-rect.height/2;
     const length=Math.hypot(dx,dy);if(length>radius){dx*=radius/length;dy*=radius/length;}
     joystickInput.x=Math.abs(dx/radius)<.12?0:dx/radius;joystickInput.y=Math.abs(dy/radius)<.12?0:dy/radius;stick.style.setProperty('--jx',dx+'px');stick.style.setProperty('--jy',dy+'px');
   }
-  stick.addEventListener('pointerdown',e=>{if(!active||joystickInput.pointer!==null||performance.now()<localBowUntil)return;e.preventDefault();joystickInput.pointer=e.pointerId;stick.setPointerCapture(e.pointerId);target=null;moveStick(e);});
+  stick.addEventListener('pointerdown',e=>{if(!active||joystickInput.pointer!==null||performance.now()<localBowUntil)return;e.preventDefault();joystickInput.pointer=e.pointerId;joystickInput.bounds=stick.getBoundingClientRect();stick.setPointerCapture(e.pointerId);target=null;moveStick(e);});
   stick.addEventListener('pointermove',moveStick);
   for(const type of ['pointerup','pointercancel','lostpointercapture'])stick.addEventListener(type,e=>{if(joystickInput.pointer===e.pointerId)clearMovement(type!=='pointerup');});
   function updatePeople(){
@@ -124,7 +124,7 @@ import { easeVelocity } from './locomotion.mjs';
   }
   function action(type){const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil)return;target=null;clearMovement();if(type==='sit')type=me.action==='sit'?'stand':'sit';const fromSit=me.action==='sit';me.action=type;if(type==='bow'){me.ritual={kind:'bow',start:performance.now(),fromSit};localBowUntil=performance.now()+1500;}else{me.ritual=null;if(fromSit&&type==='stand')localBowUntil=performance.now()+500;}socket.emit('action',type);updatePeople();}
   $('sit').onclick=()=>action('sit');$('bow').onclick=()=>action('bow');
-  function plant(){if(!active)return;const me=players.get(myId);if(!me)return;if(Math.hypot(me.x-URN.x,me.y-URN.y)>80){toast('Lại gần lư hương trong chính điện nhé.');return;}if(performance.now()<localBowUntil)return;sendMove(true);socket.emit('plant-incense');}
+  function plant(){if(!active||incensePending)return;const me=players.get(myId);if(!me)return;if(Math.hypot(me.x-URN.x,me.y-URN.y)>80){toast('Lại gần lư hương trong chính điện nhé.');return;}if(performance.now()<localBowUntil)return;if([...items.values()].filter(i=>i.owner===myId).length>=3){toast('Bạn đang có 3 nén hương. Hãy đợi hương tàn.');return;}incensePending=true;$('incense').disabled=true;sendMove(true);socket.emit('plant-incense');}
   $('incense').onclick=plant;
   function updateYardUI(me,now){
     if(!me)return;
@@ -159,6 +159,7 @@ import { easeVelocity } from './locomotion.mjs';
   document.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>{clearMovement();target=null;});document.addEventListener('visibilitychange',()=>{clearMovement();target=null;lastFrame=performance.now();});
   // A tap chooses a ground point via raycasting; a drag rotates the camera.
   const pointers=new Map();let gesture=null,pinchDistance=0;
+  window.addEventListener('resize',()=>{clearMovement();target=null;pointers.clear();gesture=null;pinchDistance=0;});
   gameCanvas.addEventListener('pointerdown',e=>{if(!active)return;gameCanvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});gesture={x:e.clientX,y:e.clientY,moved:false};if(pointers.size===2){const[a,b]=[...pointers.values()];pinchDistance=Math.hypot(a.x-b.x,a.y-b.y);gesture.moved=true;}});
   gameCanvas.addEventListener('pointermove',e=>{const previous=pointers.get(e.pointerId);if(!active||!previous)return;const dx=e.clientX-previous.x,dy=e.clientY-previous.y;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===2){const[a,b]=[...pointers.values()],distance=Math.hypot(a.x-b.x,a.y-b.y);if(distance>1&&pinchDistance>1)view.zoomBy(pinchDistance/distance);pinchDistance=distance;gesture.moved=true;}else if(gesture&&(gesture.moved||Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>6)){gesture.moved=true;view.orbit(dx,dy);}});
   gameCanvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);gesture=null;});
@@ -213,12 +214,12 @@ import { easeVelocity } from './locomotion.mjs';
         sound.update(t,me.x,me.y,view.yaw);
         if(now-uiTimer>150){
           uiTimer=now;
-          const near=Math.hypot(me.x-URN.x,me.y-URN.y)<=80,cooldown=Math.max(0,Math.ceil((10000-(now-lastIncense))/1000));
-          $('incense').disabled=!near||now<localBowUntil||cooldown>0&&lastIncense>0;
+          const near=Math.hypot(me.x-URN.x,me.y-URN.y)<=80,ownIncense=[...items.values()].filter(i=>i.owner===myId).length;
+          $('incense').disabled=!near||incensePending||now<localBowUntil||ownIncense>=3||items.size>=12;
           $('sit').disabled=now<localBowUntil;$('bow').disabled=now<localBowUntil;
           $('incense').title=near?'Thắp một nén hương (F)':'Lại gần lư hương trong chính điện';
           const moveHint=view.mobile?'Kéo cần để di chuyển · Vuốt để nhìn quanh':'Kéo để xoay góc nhìn · WASD để đi · Chạm vào sân để bước đi';
-          $('location-hint').textContent=now<localBowUntil?(me.action==='bow'?(me.ritual?.kind==='incense'?'Đang dâng hương…':'Đang cúi lạy…'):'Đang đứng dậy…'):window.lotusAt(me.x,me.y)?(me.action==='sit'?'Thả lỏng trên lá sen · Lắng nghe mặt hồ':'Lá sen thiền · Bấm E hoặc Ngồi thiền'):near?(cooldown>0&&lastIncense>0?`Chờ ${cooldown} giây để thắp nén tiếp theo`:'Lư hương ở ngay đây · Bấm F hoặc Thắp nhang'):moveHint;
+          $('location-hint').textContent=now<localBowUntil?(me.action==='bow'?(me.ritual?.kind==='incense'?'Đang dâng hương…':'Đang cúi lạy…'):'Đang đứng dậy…'):window.lotusAt(me.x,me.y)?(me.action==='sit'?'Thả lỏng trên lá sen · Lắng nghe mặt hồ':'Lá sen thiền · Bấm E hoặc Ngồi thiền'):near?(ownIncense>=3?'Bạn đã cắm 3 nén · Đợi hương tàn':items.size>=12?'Lư hương đã đầy':incensePending?'Đang chuẩn bị dâng hương…':'Có thể cắm nén tiếp theo · F / Thắp nhang'):moveHint;
           $('sit-label').textContent=me.action==='sit'?'Đứng dậy':'Ngồi thiền';$('sit').setAttribute('aria-pressed',String(me.action==='sit'));
           updateYardUI(me,now);
         }

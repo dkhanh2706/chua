@@ -98,7 +98,7 @@ test('input validation, Unicode name limit, optional password, and unjoined even
   s.emit('action', 'invalid');s.emit('move', { x: null, y: Infinity });
   await new Promise(resolve => setTimeout(resolve, 70));assert.equal(f.players.get(s.id).action, 'stand');
 });
-test('movement, actions, incense proximity, cooldown, limits, late join, expiry and empty cleanup', async t => {
+test('movement, incense proximity, sequential rituals, limits, late join, expiry and empty cleanup', async t => {
   let clock = 100000;const f = await fixture(t, { now: () => clock, incenseTTL: 300000 });const s = await f.client();await f.join(s);
   let error = event(s, 'incense-error');s.emit('plant-incense');assert.equal(await error, 'far');
   // Traverse the courtyard using valid, server-checked steps.
@@ -107,13 +107,25 @@ test('movement, actions, incense proximity, cooldown, limits, late join, expiry 
   await new Promise(resolve=>setTimeout(resolve,65));assert.equal(f.players.get(s.id).y,235);
   s.emit('action','sit');await new Promise(resolve=>setTimeout(resolve,60));assert.equal(f.players.get(s.id).action,'sit');
   let added=event(s,'incense-added');s.emit('plant-incense');const first=await added;assert.equal(first.slot,0);assert.equal(first.ttl,300000);assert.equal(first.expiresAt,undefined);
-  error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'cooldown');
-  for(let i=1;i<3;i++){clock+=10001;added=event(s,'incense-added');s.emit('plant-incense');assert.equal((await added).slot,i);}
-  clock+=10001;error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'limit');
+  error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'busy');
+  for(let i=1;i<3;i++){clock+=1500;added=event(s,'incense-added');s.emit('plant-incense');assert.equal((await added).slot,i);}
+  clock+=1500;error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'limit');
   const second=await f.client();const result=await f.join(second);assert.equal(result.incense.length,3);assert.ok(result.incense[0].ttl<300000);
   const departed=event(second,'player-left');s.disconnect();await departed;assert.equal(f.incense.size,3);
   const removed=event(second,'incense-removed');clock+=300001;await removed;assert.equal(f.incense.size,0);
   second.disconnect();await new Promise(resolve=>setTimeout(resolve,40));assert.equal(f.players.size,0);
+});
+
+test('incense spam creates one stick per completed ritual and cannot cancel the animation lock',async t=>{
+  let clock=100000;const f=await fixture(t,{now:()=>clock}),s=await f.client();await f.join(s);
+  const p=f.players.get(s.id);Object.assign(p,{x:500,y:235});
+  let added=event(s,'incense-added');for(let i=0;i<30;i++)s.emit('plant-incense');await added;
+  await new Promise(resolve=>setTimeout(resolve,50));assert.equal(f.incense.size,1);
+  s.emit('action','stand');s.emit('move',{x:510,y:235});await new Promise(resolve=>setTimeout(resolve,40));assert.equal(p.action,'bow');assert.equal(p.x,500);
+  clock+=1499;let error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'busy');assert.equal(f.incense.size,1);
+  clock+=1;added=event(s,'incense-added');for(let i=0;i<30;i++)s.emit('plant-incense');await added;
+  await new Promise(resolve=>setTimeout(resolve,40));assert.equal(f.incense.size,2);
+  clock+=1500;p.sweepUntil=clock+900;error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'busy');assert.equal(f.incense.size,2);
 });
 test('navigation blocks the pond and stream, permits crossing the bridge', () => {
   assert.equal(validPosition(204,390),false);assert.equal(validPosition(760,400),false);assert.equal(validPosition(760,505),true);assert.equal(validPosition(500,180),false);assert.equal(validPosition(500,335),true);assert.equal(validPosition(500,400),true);

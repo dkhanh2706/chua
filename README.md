@@ -24,7 +24,7 @@ Bạn bè cùng Wi-Fi có thể mở `http://<IP-máy-chạy-server>:3000`. Nế
 - Chỉnh riêng **áo, quần, giày, tóc**; có đầu trọc, tóc ngắn, rẽ ngôi, bob, đuôi ngựa, hai bím và tóc dài. Bật/tắt **dây chuyền**; nhân vật nữ có thêm **nơ / kẹp tóc**.
 - Mỗi món có màu riêng: áo, quần, giày, đế/dây giày thể thao, tóc, dây buộc tóc, dây chuyền, nơ/kẹp và da. Dùng bảng màu nhanh, ô chọn màu hoặc nhập mã HEX bất kỳ. Tùy chỉnh của nam/nữ được ghi nhớ riêng trên trình duyệt, và gửi cho những người chơi cùng khi bạn vào sân.
 - Nhập tên rồi bấm **Ghé vào chùa**.
-- **Trên điện thoại:** giữ và kéo cần tròn bên trái để đi, vuốt lên cảnh bằng ngón còn lại để nhìn quanh. Thả cần sẽ dừng. Các nút **Ngồi thiền, Cúi lạy, Thắp nhang** ở cuối màn hình. Nút tùy chọn bên phải mở camera và chất lượng; nút **Cùng có mặt** mở danh sách người chơi.
+- **Trên điện thoại (thiết bị chơi chính):** giữ và kéo cần tròn bên trái để đi, vuốt lên cảnh bằng ngón còn lại để nhìn quanh. Thả cần hoặc xoay màn hình sẽ dừng di chuyển. Các nút **Ngồi thiền, Cúi lạy, Thắp nhang** ở cuối màn hình; nút **Var nhau** lớn ở phía phải khi cầm chổi. Nút tùy chọn bên phải mở camera và **Tiết kiệm pin**; nút **↗** phía trên sao chép link mời bạn. Giao diện hỗ trợ màn hình dọc, ngang và vùng an toàn quanh tai thỏ.
 - **WASD / mũi tên:** đi theo hướng camera. **Chạm / bấm lên sân:** tự đi tới điểm đã chọn, tìm đường vòng hồ và qua cầu.
 - **Qua cầu trên điện thoại:** dùng cần di chuyển để đi lên cầu cong mặt gỗ; tầm mắt tự nâng lên và hạ xuống theo mặt cầu. Lan can hai bên giữ lối đi. Bờ sông có đá xen cỏ thủy sinh, nước gợn và chảy từ thác ra ngoài khuôn viên.
 - **Kéo chuột / kéo một ngón:** xoay góc nhìn. **Cuộn chuột / chụm hai ngón:** phóng gần / thu xa. Có các nút `+`, `−` trên màn hình.
@@ -33,7 +33,7 @@ Bạn bè cùng Wi-Fi có thể mở `http://<IP-máy-chạy-server>:3000`. Nế
 - **E:** ngồi thiền / đứng dậy. Bước đi cũng tự đứng dậy.
 - **Hồ sen:** mặt nước xanh lam trong có gợn sáng, vòng sóng lan và 8 cá koi bơi lượn. Ba lá sen nằm trọn trong hồ, tạo thành tam giác đều và có đá bước nối từ bờ; chạm vào một lá để tự đi tới và ngồi thiền. Có thể dùng WASD / cần di chuyển để bước lên lá rồi bấm **E / Ngồi thiền**. Lá sen và người ngồi nhấp nhô nhẹ cùng nhau.
 - **Space:** cúi lạy trong 1,5 giây.
-- **F:** thắp nhang khi trong vòng 80 px quanh lư hương. Có 12 ô, mỗi người tối đa 3 nén, cách nhau 10 giây, cháy trong 5 phút.
+- **F:** thắp nhang khi trong vòng 80 px quanh lư hương. Có 12 ô, mỗi người tối đa 3 nén, cháy trong 5 phút. Cắm từng nén: hoàn thành động tác khoảng 1,5 giây là có thể bấm cắm nén tiếp theo ngay. Bấm dồn hoặc giữ phím không tạo thêm nén trong lúc đang dâng hương.
 - **M:** bật / tắt âm thanh. Trình duyệt nhớ lựa chọn này.
 - **Lấy chổi / Trả chổi:** đến gần một trong ba giá chổi gần cổng, bên vườn phía tây hoặc gần suối phía đông. Nút **Lấy chổi** tự hiện để chạm lấy; khi đang cầm chổi, đến gần giá sẽ hiện **Trả chổi**.
 - **Quét lá:** khi cầm chổi, đứng gần một đám lá dưới cây để nút **Quét lá** hiện ra rồi chạm vào. Mỗi đám lá được dọn cộng **1 điểm Phước lành**; quét chỗ trống không cộng điểm. Lá rơi liên tục từ tán cây; quét xong khoảng **3 giây** lại có đám lá mới để quét. Mọi người cùng thấy lá đã được dọn. Điểm tính riêng trong lượt ghé chùa hiện tại và đặt lại khi rời sân hoặc mất phiên kết nối.
@@ -49,7 +49,7 @@ Nhân vật thở nhẹ, chớp mắt cách nhau 3–6 giây, giữ hướng cu�
 
 Màn tạo nhân vật và sân chùa dùng chung một ngữ cảnh WebGL; sân chỉ được dựng khi vào chơi. Bản xem nhân vật chạy tối đa 24 khung hình/giây để thể hiện nhịp thở, chớp mắt và xem thử động tác; dừng vẽ khi trang bị ẩn.
 
-**Tiết kiệm pin** bật mặc định trên thiết bị cảm ứng: giới hạn vẽ cảnh ở 30 khung hình/giây, mật độ pixel tối đa 1.2 và tắt bóng đổ. Logic di chuyển và gửi trạng thái mạng vẫn hoạt động độc lập. Có thể đổi chất lượng trong nút tùy chọn; lựa chọn được ghi nhớ. Gói tin di chuyển chỉ gửi vị trí/hành động, không lặp lại toàn bộ ngoại hình mỗi lần.
+**Tiết kiệm pin** bật mặc định trên thiết bị cảm ứng: nhịp vẽ mục tiêu 30 khung hình/giây, mật độ pixel tối đa 1.2 (giảm còn 1.0 khi trình duyệt báo bộ nhớ thiết bị không quá 4 GB) và tắt bóng đổ. Điện thoại dùng WebGL không khử răng cưa đa mẫu; các lớp làm mờ giao diện được bỏ để giảm tải khi vừa đi vừa xoay camera. Kích thước canvas và cần di chuyển được ghi nhớ thay vì đo lại ở mỗi khung hình hoặc mỗi lần kéo. Khói tối đa 12 nén nhang dùng chung một lượt vẽ, với 36 cụm khói ở chế độ tiết kiệm và 60 cụm ở chất lượng cao. Logic di chuyển và gửi trạng thái mạng vẫn hoạt động độc lập. Có thể đổi chất lượng trong nút tùy chọn; lựa chọn được ghi nhớ. Gói tin di chuyển chỉ gửi vị trí/hành động, không lặp lại toàn bộ ngoại hình mỗi lần.
 
 Khuôn viên có **21 cây** với thân cong liền, vân vỏ, rễ, cành lớn/cành nhỏ và từng lá có gân. Có ba dáng lá: lá rộng, lá xẻ và lá thuôn. Lá được gắn dọc theo các nhánh; đầu lá lay nhẹ theo gió. Lá rơi xuất phát từ tán cây, lắc và xoay khi rơi, nằm trên mặt đất rồi mờ dần để tái sử dụng. Chế độ tiết kiệm pin giữ khoảng 6.720 lá trên cây và 30 lá rơi; chất lượng cao có khoảng 12.096 lá và 72 lá rơi. Các lá dùng chung hình học/vật liệu và vẽ theo nhóm để giảm tải điện thoại.
 

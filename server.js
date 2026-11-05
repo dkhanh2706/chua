@@ -39,7 +39,7 @@ function createTemple(options = {}) {
       const occupied = new Set([...players.values()].map(p => p.spawn));
       const spawn = [0, 1, 2, 3, 4].find(n => !occupied.has(n));
       const avatar = AvatarConfig.normalize(input.avatar, input.character, input.color);
-      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand', lastIncense: -Infinity, bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0,lastHit:-Infinity };
+      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand', bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0,lastHit:-Infinity };
       players.set(socket.id, p);
       socket.join('temple');
       socket.emit('joined', { id: p.id, players: [...players.values()].map(publicPlayer), incense: [...incense.values()].map(publicIncense),leaves:[...leafPatches.values()].map(publicPatch) });
@@ -70,15 +70,14 @@ function createTemple(options = {}) {
     socket.on('plant-incense', () => {
       const p = players.get(socket.id);
       if (!p) return;
-      if(p.sweepUntil>now())return;
-      const fail = code => socket.emit('incense-error', code);
+      const time=now(),fail = code => socket.emit('incense-error', code);
+      if(p.bowUntil>time||p.sweepUntil>time)return fail('busy');
       if (Math.hypot(p.x - URN.x, p.y - URN.y) > 80) return fail('far');
-      if (now() - p.lastIncense < 10000) return fail('cooldown');
       if ([...incense.values()].filter(i => i.owner === p.id).length >= 3) return fail('limit');
       if (incense.size >= 12) return fail('full');
       const slots = new Set([...incense.values()].map(i => i.slot));
       const item = { id: randomUUID(), owner: p.id, slot: Array.from({ length: 12 }, (_, i) => i).find(i => !slots.has(i)), expiresAt: now() + ttl };
-      incense.set(item.id, item); p.lastIncense = now(); p.action = 'bow'; p.bowUntil = now() + 1500;
+      incense.set(item.id, item); p.action = 'bow'; p.bowUntil = time + 1500;
       io.to('temple').emit('incense-added', publicIncense(item)); dirty = true;
     });
     socket.on('broom',input=>{

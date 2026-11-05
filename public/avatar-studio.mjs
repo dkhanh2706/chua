@@ -13,8 +13,8 @@ export class AvatarStudio{
   setAppearance(appearance){const signature=JSON.stringify(appearance);if(this.model?.signature===signature)return;if(this.model)disposeAvatar(this.model);this.model=createAvatar(appearance);this.scene.add(this.model.root);this.model.root.rotation.y=this.yaw;this.dirty=true;}
   setAction(action){if(!['idle','walk','sit','bow','incense'].includes(action))return;const now=performance.now();if(this.gesture&&now-this.gesture.start<1500)return;const fromSit=this.action==='sit';this.action=action;this.gesture=['bow','incense'].includes(action)?{kind:action,start:now,fromSit}:null;this.dirty=true;this.onActionChange?.(action);}
   rotate(radians){this.yaw=radians;if(this.model)this.model.root.rotation.y=this.yaw;this.dirty=true;}
-  render(canvas){
-    const rect=canvas.getBoundingClientRect(),width=Math.round(rect.width),height=Math.round(rect.height);if(!width||!height||document.hidden)return;
+  render(canvas,size){
+    const rect=size||canvas.getBoundingClientRect(),width=Math.round(rect.width),height=Math.round(rect.height);if(!width||!height||document.hidden)return;
     if(width!==this.width||height!==this.height){this.width=width;this.height=height;this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.dirty=true;}
     const now=performance.now()/1000;if(!this.dirty&&now-(this.lastRender||0)<1/24)return;const dt=Math.min(.05,now-(this.lastRender||now-.016));this.lastRender=now;
     if(this.gesture&&now*1000-this.gesture.start>=1500){this.gesture=null;this.action='idle';this.onActionChange?.('idle');}

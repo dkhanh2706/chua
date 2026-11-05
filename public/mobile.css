@@ -3,8 +3,7 @@
 #game .stage-tag,
 #people-panel,
 #people-toggle,
-#view-options,
-#battery-saver{display:none!important}
+#view-options{display:none!important}
 
 /* Touch-first character studio and game controls. */
 .creator-home{display:block;max-width:1110px;padding:0 35px;margin:18px auto 50px}
@@ -23,7 +22,7 @@
 .custom-note{font-size:9px;line-height:1.8;color:#9aa38d;padding-bottom:18px;border-bottom:1px solid #e0e5d6;margin:8px 0 19px}.entry-fields .section-label{font-size:11px}.entry-fields #name{height:48px}.entry-fields .primary{height:49px;margin-top:18px;font-size:13px}.entry-fields #password-wrap{margin-top:15px}.entry-fields .form-error{margin-top:10px}.entry-fields .entry-note{font-size:9px}
 .joystick,.people-toggle,.settings-toggle,.look-hint{display:none}
 .battery-saver{position:absolute;right:26px;bottom:77px;border:1px solid #fff9;border-radius:8px;background:#faf8ede0;color:#6e805b;padding:8px 12px;font-size:9px;z-index:3}.battery-saver[aria-pressed=true]{background:#dce5cb}
-@media(max-width:800px), (pointer:coarse) and (max-height:550px){
+@media(max-width:800px), (pointer:coarse){
  body{overscroll-behavior-y:none}.topbar{height:78px;padding:0 20px}.brand{font-size:21px}.brand-note{font-size:7px;letter-spacing:2px}.brand-icon{font-size:38px}.top-right{gap:10px}.top-right .presence{display:none}.icon-button{width:44px;height:44px}
  .creator-home{margin:8px auto 25px;padding:0 18px;max-width:540px}.creator-heading{margin-bottom:18px}.creator-heading .eyebrow{font-size:7px;letter-spacing:2px}.creator-heading h1{font-size:28px;line-height:1.45;margin:8px 0;letter-spacing:-.8px}.creator-heading p{font-size:10px;line-height:1.8;max-width:310px}
  .creator-layout{display:flex;flex-direction:column;gap:23px}.avatar-pane{position:relative;top:auto;width:100%;padding:10px;border-radius:16px}.avatar-stage{height:310px;margin-top:6px}.avatar-stage-label{top:10px;font-size:7px;letter-spacing:1.6px}.rotation-controls{margin-top:1px;gap:8px}.rotation-controls button{height:44px;width:44px}.rotate-hint{bottom:8px;font-size:9px}.gender-options button{font-size:13px;min-height:44px}
@@ -48,3 +47,30 @@
 @media(max-width:360px){body.playing .game-heading h2,body.playing.first-person .game-heading h2{font-size:18px}body.playing .game-heading h2 span{display:none}.brand-note{letter-spacing:1.2px}.brand{font-size:19px}.topbar{padding:0 14px}.top-right{gap:5px}}
 @media(max-width:800px) and (min-height:700px) and (orientation:portrait){.avatar-pane{position:sticky;top:6px;z-index:2;box-shadow:0 6px 16px #40542e0c}.avatar-stage{height:clamp(220px,32dvh,285px)}}
 @media(max-height:550px) and (pointer:coarse){body.playing .game-heading,body.playing .stage-tag,.people-toggle{display:none}.joystick{bottom:105px;width:95px;height:95px}.joystick-caption{display:none}.settings-toggle{bottom:110px}.look-hint{display:none}body.playing.settings-open .camera-controls{bottom:175px;grid-template-columns:repeat(6,1fr);width:300px}.camera-controls button:nth-child(-n+3){grid-column:span 2}.camera-controls button:nth-last-child(-n+3){grid-column:span 2}body.playing.settings-open .view-options{right:220px;bottom:120px;width:150px}body.playing.settings-open .battery-saver{right:63px;bottom:120px;width:150px}}
+
+/* Phones are the primary controls: avoid blur compositing over every 3D frame. */
+@media(max-width:800px),(pointer:coarse){
+ body.playing .controls,body.playing .camera-controls,body.playing .battery-saver,
+ body.playing .joystick,body.playing .settings-toggle,body.playing .yard-tools,
+ body.playing .blessing-panel,body.playing #location-hint{backdrop-filter:none;-webkit-backdrop-filter:none}
+ body.playing .controls{left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px));width:auto;transform:none}
+ body.playing .actions kbd{display:none}
+ body.playing .joystick{left:calc(16px + env(safe-area-inset-left,0px))}
+ body.playing .settings-toggle{right:calc(18px + env(safe-area-inset-right,0px))}
+ body.playing .yard-tools{right:calc(15px + env(safe-area-inset-right,0px));background:#faf8eef5}
+ body.playing .yard-tools button{flex:1 1 calc(50% - 3px);min-height:52px;font-size:14px}
+ body.playing .yard-tools #broom-hit{flex-basis:100%}
+ body.playing .topbar{padding-left:calc(16px + env(safe-area-inset-left,0px));padding-right:calc(16px + env(safe-area-inset-right,0px))}
+ body.playing .game-heading .text-button{min-height:44px}
+ .color-field .hex-color,.style-field select{font-size:16px}
+}
+@media(max-width:360px){
+ .topbar .brand,body.playing .topbar .brand{font-size:16px;gap:7px}
+ .topbar .brand-icon,body.playing .topbar .brand-icon{font-size:30px}
+ .topbar .brand-note{font-size:6px;letter-spacing:1px}
+ .topbar .top-right{gap:4px}.topbar .top-divider{display:none}
+}
+@media(max-height:550px) and (pointer:coarse){
+ body.playing .game-heading{display:flex}
+ body.playing .game-heading .text-button{top:calc(14px + env(safe-area-inset-top,0px));right:calc(184px + env(safe-area-inset-right,0px))}
+}

@@ -7,6 +7,7 @@ import { buildTempleInterior } from './temple-interior.mjs';
 import { YardCare } from './yard-care.mjs';
 import { LotusPond } from './lotus-pond.mjs';
 import {RIGHT_HAND,broomStrike,applyRightHandStrike} from './broom-motion.mjs';
+import {IncenseSmoke} from './incense-smoke.mjs';
 
 const { WORLD, URN, riverX, groundHeight } = window;
 const TAU=Math.PI*2;
@@ -76,8 +77,10 @@ export class TempleView {
   constructor(canvas){
     this.canvas=canvas;this.mode='panorama';this.yaw=0;this.pitch=.76;this.zoom=1;this.active=false;this.models=new Map();this.incense=new Map();this.smoke=[];this.roofs=[];this.leaves=[];this.look=new THREE.Vector3(0,0,5);this.ray=new THREE.Raycaster();this.plane=new THREE.Plane(new THREE.Vector3(0,1,0),0);this.lastTime=0;this.ready=false;
     this.mobile=window.matchMedia('(pointer: coarse)').matches||window.innerWidth<800;
+    this.mobilePixelLimit=navigator.deviceMemory&&navigator.deviceMemory<=4?1:1.2;
     this.batterySaver=this.mobile;try{const saved=localStorage.getItem('temple-battery-saver');if(saved!==null)this.batterySaver=saved==='true';}catch{}
-    this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'default'});this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,this.batterySaver?1.2:1.6));this.renderer.shadowMap.enabled=!this.batterySaver;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;
+    this.renderer=new THREE.WebGLRenderer({canvas,antialias:!this.mobile,powerPreference:this.mobile?'low-power':'default'});this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,this.batterySaver?this.mobilePixelLimit:1.6));this.renderer.shadowMap.enabled=!this.batterySaver;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;
+    if(typeof ResizeObserver!=='undefined'){this.resizeObserver=new ResizeObserver(([entry])=>{this.canvasSize=entry.contentRect;});this.resizeObserver.observe(canvas);}
     this.studio=new AvatarStudio(this.renderer);
     this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#d7e2d1');this.scene.fog=new THREE.Fog('#d7e2d1',95,210);
     this.camera=new THREE.PerspectiveCamera(47,1,.2,350);this.camera.position.set(0,66,68);this.camera.lookAt(this.look);
@@ -144,11 +147,11 @@ export class TempleView {
     const rim=mesh(g,new THREE.TorusGeometry(1.58,.08,12,64),mat('#c09a57',{metalness:.55,roughness:.4}),0,1.47,0);rim.rotation.x=Math.PI/2;
     for(let i=0;i<3;i++){const a=i/3*TAU;beam(g,[Math.cos(a)*.9,.6,Math.sin(a)*.9],[Math.cos(a)*1.15,.26,Math.sin(a)*1.15],.13,'#84633c');}
     for(const x of [-1,1]){const handle=mesh(g,new THREE.TorusGeometry(.4,.09,10,32),mat('#b59051'),x*1.78,1.18,0);handle.rotation.y=.3;}
-    this.smokeGeo=new THREE.SphereGeometry(1,7,5);
+    this.incenseSmoke=new IncenseSmoke(g);
   }
   setActive(active){this.active=active;this.width=0;this.studio.width=0;this.studio.dirty=true;this.look.set(0,0,active?8:0);this.setMode(active?'overhead':'panorama');if(active){if(!this.worldBuilt){this.buildWorld();this.worldBuilt=true;}this.resetCamera();}}
-  setBatterySaver(enabled){this.batterySaver=enabled;this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,enabled?1.2:1.6));this.renderer.shadowMap.enabled=!enabled;this.renderer.shadowMap.needsUpdate=true;this.studio.dirty=true;this.garden?.setQuality(enabled);this.canvas.dataset.batterySaver=String(enabled);}
-  renderCreator(appearance){if(!this.ready)return;this.studio.setAppearance(appearance);this.studio.render(this.canvas);}
+  setBatterySaver(enabled){this.batterySaver=enabled;this.renderer.setPixelRatio(Math.min(window.devicePixelRatio,enabled?this.mobilePixelLimit:1.6));this.renderer.shadowMap.enabled=!enabled;this.renderer.shadowMap.needsUpdate=true;this.studio.dirty=true;this.garden?.setQuality(enabled);this.canvas.dataset.batterySaver=String(enabled);}
+  renderCreator(appearance){if(!this.ready)return;this.studio.setAppearance(appearance);this.studio.render(this.canvas,this.canvasSize);}
   setMode(mode){if(!['overhead','panorama','follow'].includes(mode))return;this.mode=mode;this.zoom=1;this.pitch=mode==='overhead'?.55:mode==='follow'?.61:.76;this.cameraNeedsSnap=true;this.canvas.dataset.cameraMode=mode;}
   resetCamera(){this.yaw=0;this.zoom=1;this.pitch=this.mode==='overhead'?.55:this.mode==='follow'?.61:.76;this.cameraNeedsSnap=true;}
   orbit(dx,dy){this.yaw-=dx*.006;this.pitch=THREE.MathUtils.clamp(this.pitch+dy*.004,this.mode==='overhead'?-.4:.28,1.15);}
@@ -187,14 +190,16 @@ export class TempleView {
     }
   }
   syncIncense(items,t){
-    const ids=new Set(items.map(i=>i.id));for(const[id,g]of this.incense)if(!ids.has(id)){this.urn.remove(g);g.traverse(o=>{if(o.userData.smoke===true&&o.material)o.material.dispose();});this.incense.delete(id);}
-    for(const item of items){let g=this.incense.get(item.id);if(!g){g=group(this.urn,-1.2+(item.slot%6)*.46,1.46,(Math.floor(item.slot/6)-.5)*.6);g.userData.stick=cylinder(g,0,.8,0,.025,.025,1.6,'#ab6d4e',6);g.userData.ember=ball(g,0,1.6,0,.055,.06,.055,'#e79557');g.userData.ember.material=mat('#e79a5a',{emissive:'#ff7d35',emissiveIntensity:2});g.userData.smoke=[];for(let i=0;i<5;i++){const puff=mesh(g,this.smokeGeo,new THREE.MeshBasicMaterial({color:'#eee7d6',transparent:true,opacity:.12,depthWrite:false}),0,2+i*.4,0,.12,.2,.12);puff.castShadow=false;puff.userData.smoke=true;g.userData.smoke.push(puff);}this.incense.set(item.id,g);}
-      const length=.25+Math.max(0,(item.end-performance.now())/300000)*.85;g.userData.stick.scale.y=length/1.6;g.userData.stick.position.y=length/2;g.userData.ember.position.y=length;g.userData.smoke.forEach((p,i)=>{const a=(t*.18+i*.2+item.slot*.07)%1;p.position.set(Math.sin(t+i)*a*.3,length+a*2.8,Math.cos(t*.7+i)*a*.2);p.scale.setScalar(.09+a*.26);p.material.opacity=(1-a)*.15;});
+    const ids=new Set(items.map(i=>i.id));for(const[id,g]of this.incense)if(!ids.has(id)){this.urn.remove(g);this.incense.delete(id);}
+    const now=performance.now();
+    for(const item of items){let g=this.incense.get(item.id);if(!g){g=group(this.urn,-1.2+(item.slot%6)*.46,1.46,(Math.floor(item.slot/6)-.5)*.6);g.userData.stick=cylinder(g,0,.8,0,.025,.025,1.6,'#ab6d4e',6);g.userData.ember=ball(g,0,1.6,0,.055,.06,.055,'#e79557');g.userData.ember.material=mat('#e79a5a',{emissive:'#ff7d35',emissiveIntensity:2});this.incense.set(item.id,g);}
+      const length=.25+Math.max(0,(item.end-now)/300000)*.85;g.userData.stick.scale.y=length/1.6;g.userData.stick.position.y=length/2;g.userData.ember.position.y=length;
     }
+    this.incenseSmoke.update(items,t,this.batterySaver,now);
   }
   render(time,players,items,myId,target){
-    if(!this.ready||!this.active||document.hidden)return;if(this.batterySaver&&time-(this.lastRendered||0)<1/30)return;this.lastRendered=time;const dt=Math.min(.05,Math.max(.001,time-this.lastTime));this.lastTime=time;
-    const rect=this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;const width=Math.round(rect.width),height=Math.round(rect.height);if(width!==this.width||height!==this.height){this.width=width;this.height=height;this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();}
+    if(!this.ready||!this.active||document.hidden)return;if(this.batterySaver&&time-(this.lastRendered||0)<1/30-.0015)return;this.lastRendered=time;const dt=Math.min(.05,Math.max(.001,time-this.lastTime));this.lastTime=time;
+    const rect=this.canvasSize||this.canvas.getBoundingClientRect();if(!rect.width||!rect.height)return;const width=Math.round(rect.width),height=Math.round(rect.height);if(width!==this.width||height!==this.height){this.width=width;this.height=height;this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();}
     this.syncPlayers(players,myId,time,dt);this.syncIncense(items,time);
     const me=players.find(p=>p.id===myId),pos=me?position(me.x,me.y,time):new THREE.Vector3();
     const close=this.mode==='overhead',wide=this.mode==='panorama'||!this.active;

@@ -49,7 +49,11 @@ test('mobile supports walking and looking with two touches, releasing stops move
     expect(Math.abs((await snapshot()).yaw-before.yaw)).toBeGreaterThan(.1);
     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(150);const stopped=await snapshot();await page.waitForTimeout(300);const after=await snapshot();expect(Math.hypot(after.x-stopped.x,after.z-stopped.z)).toBeLessThan(.08);
     await expect(page.locator('#people-panel')).not.toBeVisible();await expect(page.locator('#people-toggle')).not.toBeVisible();
-    await page.locator('#settings-toggle').tap();await expect(page.locator('#battery-saver')).not.toBeVisible();await expect(page.locator('#camera-overhead')).toBeVisible();await page.locator('#settings-toggle').tap();await expect(page.locator('#camera-overhead')).not.toBeVisible();
+    await page.locator('#settings-toggle').tap();await expect(page.locator('#battery-saver')).toBeVisible();await expect(page.locator('#camera-overhead')).toBeVisible();
+    await page.locator('#battery-saver').tap();await expect(page.locator('#battery-saver')).toHaveAttribute('aria-pressed','false');expect((await snapshot()).shadow).toBe(true);
+    await page.locator('#battery-saver').tap();await expect(page.locator('#battery-saver')).toHaveAttribute('aria-pressed','true');expect((await snapshot()).shadow).toBe(false);
+    expect(await page.evaluate(()=>localStorage.getItem('temple-battery-saver'))).toBe('true');
+    await page.locator('#settings-toggle').tap();await expect(page.locator('#camera-overhead')).not.toBeVisible();
     await page.screenshot({path:'test-results/mobile-overhead.png'});
     await context.setOffline(true);await page.waitForTimeout(100);await context.setOffline(false);
     await expect(page.locator('body')).toHaveJSProperty('scrollWidth',390);
@@ -58,5 +62,5 @@ test('mobile supports walking and looking with two touches, releasing stops move
 
 for(const viewport of [{width:320,height:640},{width:844,height:390}])test(`touch layout stays usable at ${viewport.width}×${viewport.height}`,async({browser})=>{
   const context=await browser.newContext({viewport,isMobile:true,hasTouch:true}),page=await context.newPage();
-  try{await page.goto('/');await expect(page.locator('body')).toHaveJSProperty('scrollWidth',viewport.width);await page.locator('#name').fill('An');await page.locator('#join-button').tap();await expect(page.locator('#joystick')).toBeVisible();await expect(page.locator('#sit')).toBeInViewport();await expect(page.locator('#bow')).toBeInViewport();await page.locator('#settings-toggle').tap();await expect(page.locator('#camera-follow')).toBeInViewport();await expect(page.locator('#battery-saver')).not.toBeVisible();await page.locator('#settings-toggle').tap();await expect(page.locator('.yard-tools')).not.toBeVisible();await expect(page.locator('.blessing-panel')).toBeInViewport();await page.screenshot({path:`test-results/layout-${viewport.width}.png`});}finally{await context.close();}
+  try{await page.goto('/');await expect(page.locator('body')).toHaveJSProperty('scrollWidth',viewport.width);await page.locator('#name').fill('An');await page.locator('#join-button').tap();await expect(page.locator('#joystick')).toBeVisible();await expect(page.locator('#sit')).toBeInViewport();await expect(page.locator('#bow')).toBeInViewport();await page.locator('#settings-toggle').tap();await expect(page.locator('#camera-follow')).toBeInViewport();await expect(page.locator('#battery-saver')).toBeInViewport();await page.locator('#settings-toggle').tap();await expect(page.locator('.yard-tools')).not.toBeVisible();await expect(page.locator('.blessing-panel')).toBeInViewport();await page.screenshot({path:`test-results/layout-${viewport.width}.png`});}finally{await context.close();}
 });
