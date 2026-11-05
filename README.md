@@ -1,6 +1,8 @@
 # Chùa Online
 
-Một sân chùa **3D** chung cho tối đa **5 người**, tên tối đa **14 ký tự**. Mặc định nhìn bằng **mắt nhân vật**: camera ở tầm mắt, hạ khi ngồi thiền, cúi xuống khi lạy, thấy hai tay nâng nén hương khi thắp nhang. Vẫn có camera toàn cảnh và theo chân. Không tài khoản, không chat, không bảng xếp hạng, không database. Dữ liệu người chơi, điểm phước lành, lá và hương chỉ ở trong bộ nhớ server.
+Một sân chùa **3D** chung cho tối đa **5 người**, tên tối đa **14 ký tự**. Mặc định dùng camera **Trên đầu**, ở gần phía trên nhân vật để nhìn rõ toàn thân; kéo dọc để ngẩng nhìn lên cao hoặc nhìn xuống. Nhân vật ngồi xuống khoanh chân, khoanh tay trước người khi thiền. Vẫn có camera toàn cảnh và theo chân. Không tài khoản, không chat, không bảng xếp hạng, không database. Dữ liệu người chơi, điểm phước lành, lá và hương chỉ ở trong bộ nhớ server.
+
+Link đang dùng: **https://dichua-d2ud.onrender.com/**. Mở cùng link, chọn nhân vật và nhập tên là vào chung một sân, thấy ngay những người đã vào. Nút **↗** cạnh nút âm thanh sao chép link mời bạn. Tối đa 5 người cùng lúc; khi đủ chỗ, người thứ 6 được báo phòng đầy. Không đặt `ROOM_PASSWORD` trên Render để ai có link cũng vào được.
 
 ## Chạy trên máy
 
@@ -26,16 +28,16 @@ Bạn bè cùng Wi-Fi có thể mở `http://<IP-máy-chạy-server>:3000`. Nế
 - **WASD / mũi tên:** đi theo hướng camera. **Chạm / bấm lên sân:** tự đi tới điểm đã chọn, tìm đường vòng hồ và qua cầu.
 - **Qua cầu trên điện thoại:** dùng cần di chuyển để đi lên cầu cong mặt gỗ; tầm mắt tự nâng lên và hạ xuống theo mặt cầu. Lan can hai bên giữ lối đi. Bờ sông có đá xen cỏ thủy sinh, nước gợn và chảy từ thác ra ngoài khuôn viên.
 - **Kéo chuột / kéo một ngón:** xoay góc nhìn. **Cuộn chuột / chụm hai ngón:** phóng gần / thu xa. Có các nút `+`, `−` trên màn hình.
-- **V:** đổi lần lượt **Mắt nhân vật → Toàn cảnh → Theo chân**. **R:** nhìn thẳng và đặt lại thu phóng.
-- **Nhìn bằng chuột** (máy tính): bật để nhìn quanh theo chuột mà không cần giữ nút. **Esc** trả lại con trỏ để bấm các nút. Khi đang khóa chuột, dùng **E / Space / F** cho các hành động. Nếu trình duyệt không hỗ trợ khóa chuột, vẫn có thể giữ và kéo để nhìn quanh.
-- **Chuyển động nhẹ:** mặc định bật, giảm mức hạ và góc cúi của tầm mắt khi lạy. Tắt để cúi đầy đủ hơn. Lựa chọn được ghi nhớ trên trình duyệt. Camera không có hiệu ứng rung đầu khi bước đi; tốc độ đi ở góc nhìn thứ nhất cũng chậm hơn.
-- Đi lên các bậc thềm để vào chính điện. Ở góc nhìn thứ nhất, bạn đứng dưới mái chùa và thấy nội thất bình thường. Ở hai góc nhìn từ bên ngoài, mái chùa và mái cổng mờ khi che nhân vật.
+- **V:** đổi lần lượt **Trên đầu → Toàn cảnh → Theo chân**. **R:** nhìn thẳng và đặt lại thu phóng.
+- Đi lên các bậc thềm để vào chính điện. Mái chùa và mái cổng mờ khi che nhân vật để nhìn rõ toàn thân.
 - **E:** ngồi thiền / đứng dậy. Bước đi cũng tự đứng dậy.
+- **Hồ sen:** mặt nước xanh lam trong có gợn sáng, vòng sóng lan và 8 cá koi bơi lượn. Ba lá sen nằm trọn trong hồ, tạo thành tam giác đều và có đá bước nối từ bờ; chạm vào một lá để tự đi tới và ngồi thiền. Có thể dùng WASD / cần di chuyển để bước lên lá rồi bấm **E / Ngồi thiền**. Lá sen và người ngồi nhấp nhô nhẹ cùng nhau.
 - **Space:** cúi lạy trong 1,5 giây.
 - **F:** thắp nhang khi trong vòng 80 px quanh lư hương. Có 12 ô, mỗi người tối đa 3 nén, cách nhau 10 giây, cháy trong 5 phút.
 - **M:** bật / tắt âm thanh. Trình duyệt nhớ lựa chọn này.
 - **Lấy chổi / Trả chổi:** đến gần một trong ba giá chổi gần cổng, bên vườn phía tây hoặc gần suối phía đông. Nút **Lấy chổi** tự hiện để chạm lấy; khi đang cầm chổi, đến gần giá sẽ hiện **Trả chổi**.
 - **Quét lá:** khi cầm chổi, đứng gần một đám lá dưới cây để nút **Quét lá** hiện ra rồi chạm vào. Mỗi đám lá được dọn cộng **1 điểm Phước lành**; quét chỗ trống không cộng điểm. Lá rơi liên tục từ tán cây; quét xong khoảng **3 giây** lại có đám lá mới để quét. Mọi người cùng thấy lá đã được dọn. Điểm tính riêng trong lượt ghé chùa hiện tại và đặt lại khi rời sân hoặc mất phiên kết nối.
+- **Var nhau (G):** nút **Var nhau** luôn hiện khi cầm chổi. Chạm nút hoặc bấm **G** để dùng **tay phải** quét chổi **ngang trước người, từ trái sang phải**, rồi thu chổi về. Chổi kiểm tra va chạm ở nhịp đi qua phía trước, trong tầm 40 px; người kia có thể né và không cần cầm chổi. **Chỉ khi trúng người, người vung chổi mất 1 phước lành** (có thể âm); vung hụt không mất điểm, người bị chạm không mất điểm. Mọi người thấy cùng động tác và kết quả. Mỗi lần cách nhau ít nhất 1,4 giây, không đánh xuyên tường hoặc qua nước.
 
 Sân dùng sáu cột đèn thân thép mạ kẽm, cần cong và đầu đèn LED theo dáng đèn đường Việt Nam. Thao tác chổi được thiết kế cho điện thoại: di chuyển bằng cần tròn và chạm nút hiện ra khi đến gần, không cần bàn phím.
 
@@ -43,7 +45,7 @@ Sân dùng sáu cột đèn thân thép mạ kẽm, cần cong và đầu đèn 
 
 Thiết kế nhân vật áp dụng phong cách chibi và tinh thần hoạt ảnh trong tài liệu `nhan-vat-chua-online.md` vào mô hình **3D**, theo lựa chọn giữ hai nhân vật nam/nữ và bộ tùy chỉnh. Đầu chiếm khoảng 40% chiều cao, khuôn mặt hiền, viền mảnh cùng tông, thân áo là bề mặt cong liền có cổ/nếp vải. Các chuỗi xương và trọng số chuyển tiếp giữ khuỷu/gối liền khi gập; độ cao cơ thể được hiệu chỉnh theo đáy giày để chân không chìm xuống sàn.
 
-Nhân vật thở nhẹ, chớp mắt cách nhau 3–6 giây, giữ hướng cuối khi dừng. Chu kỳ bước chân được tính từ quãng đường thực tế, gồm vị trí đã nội suy của người chơi khác. Tăng/giảm tốc khoảng 0,1 giây; đứng dậy trước khi đi mất khoảng 0,5 giây. Lạy có chuẩn bị–cúi–giữ–trở lại; dâng hương có nâng tay và đưa hương về phía trước. Tầm mắt ở góc nhìn thứ nhất dùng cùng nhịp chuyển động với cơ thể. Tiếng bước chân nhẹ thay đổi theo nền cỏ, sân đá hoặc cầu gỗ và tuân theo nút tắt âm chung.
+Nhân vật thở nhẹ, chớp mắt cách nhau 3–6 giây, giữ hướng cuối khi dừng. Chu kỳ bước chân được tính từ quãng đường thực tế, gồm vị trí đã nội suy của người chơi khác. Tăng/giảm tốc khoảng 0,1 giây; đứng dậy trước khi đi mất khoảng 0,5 giây. Lạy có chuẩn bị–cúi–giữ–trở lại; dâng hương có nâng tay và đưa hương về phía trước. Tiếng bước chân nhẹ thay đổi theo nền cỏ, sân đá hoặc cầu gỗ và tuân theo nút tắt âm chung.
 
 Màn tạo nhân vật và sân chùa dùng chung một ngữ cảnh WebGL; sân chỉ được dựng khi vào chơi. Bản xem nhân vật chạy tối đa 24 khung hình/giây để thể hiện nhịp thở, chớp mắt và xem thử động tác; dừng vẽ khi trang bị ẩn.
 

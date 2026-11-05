@@ -15,8 +15,8 @@ test('welcome, multiplayer, keyboard, incense, capacity and leaving', async ({ b
   await page.keyboard.down('w');try{await expect(page.locator('#incense')).toBeEnabled({timeout:20000});}finally{await page.keyboard.up('w');}await expect(page.locator('#sit-label')).toHaveText('Ngồi thiền');
   await expect(page.locator('#incense')).toBeEnabled({timeout:3000});await page.locator('#incense').click();await expect(page.locator('#incense-count')).toContainText('1');await expect(pages[1].locator('#incense-count')).toContainText('1');
   await page.waitForTimeout(450);
-  expect(await page.evaluate(async()=>{const {TempleView}=await import('/scene3d.js');return new Promise(resolve=>{const original=TempleView.prototype.render;TempleView.prototype.render=function(...args){original.apply(this,args);TempleView.prototype.render=original;resolve(this.heldIncense.visible);};});})).toBe(true);
-  await page.screenshot({path:'test-results/first-person-incense.png',fullPage:true});
+  expect(await page.evaluate(async()=>{const {TempleView}=await import('/scene3d.js');return new Promise(resolve=>{const original=TempleView.prototype.render;TempleView.prototype.render=function(...args){original.apply(this,args);TempleView.prototype.render=original;resolve(this.models.get(args[3]).heldIncense.visible);};});})).toBe(true);
+  await page.screenshot({path:'test-results/overhead-incense.png',fullPage:true});
   await page.locator('#camera-panorama').click();await page.waitForTimeout(700);await page.screenshot({path:'test-results/courtyard.png',fullPage:true});
   await expect(page.locator('#canvas')).toHaveAttribute('data-renderer','webgl');
   await page.locator('#camera-follow').click();await expect(page.locator('#canvas')).toHaveAttribute('data-camera-mode','follow');
@@ -29,7 +29,7 @@ test('mobile entry, touch movement, help and sound controls', async ({ browser }
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});const page=await context.newPage();await page.goto('/');
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth',390);await page.screenshot({path:'test-results/mobile-welcome.png',fullPage:true});
   await page.locator('#name').fill('Bình An');await page.locator('#join-button').tap();await expect(page.locator('#game')).toBeVisible();await page.locator('#sit').tap();await expect(page.locator('#sit-label')).toHaveText('Đứng dậy');
-  await expect(page.locator('#camera-first')).toHaveAttribute('aria-pressed','true');await page.locator('#settings-toggle').tap();await page.locator('#camera-panorama').tap();await page.locator('#settings-toggle').tap();
+  await expect(page.locator('#camera-overhead')).toHaveAttribute('aria-pressed','true');await page.locator('#settings-toggle').tap();await page.locator('#camera-panorama').tap();await page.locator('#settings-toggle').tap();
   await page.waitForTimeout(800);const box=await page.locator('#canvas').boundingBox();await page.touchscreen.tap(box.x+box.width*.5,box.y+box.height*.55);await expect(page.locator('#sit-label')).toHaveText('Ngồi thiền');
   await page.locator('#sit').tap();const pad=await page.locator('#joystick').boundingBox();await page.mouse.move(pad.x+pad.width/2,pad.y+pad.height/2-30);await page.mouse.down();await expect(page.locator('#sit-label')).toHaveText('Ngồi thiền');await page.mouse.up();
   await page.waitForTimeout(1200);await page.locator('#help').tap();await expect(page.locator('#help-dialog')).toBeVisible();await page.getByRole('button',{name:'Mình hiểu rồi'}).tap();await page.locator('#sound').tap();await page.screenshot({path:'test-results/mobile-game.png',fullPage:true});
@@ -58,27 +58,36 @@ test('drag rotates camera and keyboard movement follows the new view', async ({ 
     await page.mouse.move(canvas.width*.48,canvas.height*.53);await page.mouse.down();await page.mouse.move(canvas.width*.62,canvas.height*.53,{steps:12});await page.mouse.up();
     await page.locator('#canvas').focus();await page.keyboard.down('w');try{await expect.poll(()=>latest.x-initial.x,{timeout:5000}).toBeGreaterThan(25);}finally{await page.keyboard.up('w');}
     expect(latest.y).toBeLessThan(initial.y);
-    await page.keyboard.press('v');await expect(page.locator('#camera-panorama')).toHaveAttribute('aria-pressed','true');await page.keyboard.press('v');await expect(page.locator('#camera-follow')).toHaveAttribute('aria-pressed','true');await page.keyboard.press('v');await expect(page.locator('#camera-first')).toHaveAttribute('aria-pressed','true');await page.locator('#camera-in').click();await page.locator('#camera-out').click();await page.locator('#camera-reset').click();
+    await page.keyboard.press('v');await expect(page.locator('#camera-panorama')).toHaveAttribute('aria-pressed','true');await page.keyboard.press('v');await expect(page.locator('#camera-follow')).toHaveAttribute('aria-pressed','true');await page.keyboard.press('v');await expect(page.locator('#camera-overhead')).toHaveAttribute('aria-pressed','true');await page.locator('#camera-in').click();await page.locator('#camera-out').click();await page.locator('#camera-reset').click();
   }finally{observer?.disconnect();await context.close();}
 });
-test('first-person eyes follow posture, hands animate, and the own head is hidden', async ({ browser }) => {
-  const context=await browser.newContext({viewport:{width:1280,height:900}}),page=await context.newPage();const errors=[];page.on('pageerror',error=>errors.push(error.message));
+for(const mobile of [false,true])test(`close overhead camera shows the complete body and seated pose (${mobile?'mobile':'desktop'})`,async({browser})=>{
+  const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1280,height:900},isMobile:mobile,hasTouch:mobile}),page=await context.newPage(),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
   try{
-    await page.goto('/');await page.locator('#name').fill('Mắt nhân vật');await page.locator('#join-button').click();await expect(page.locator('#canvas')).toHaveAttribute('data-camera-mode','first');
-    // Inspect the live renderer, without adding debug APIs to the application.
-    await page.evaluate(async()=>{const {TempleView}=await import('/scene3d.js');await new Promise(resolve=>{const original=TempleView.prototype.render;TempleView.prototype.render=function(...args){original.apply(this,args);TempleView.prototype.render=original;window.cameraQA={view:this,id:args[3]};resolve();};});});
-    const state=()=>page.evaluate(()=>{const v=window.cameraQA.view,m=v.models.get(window.cameraQA.id);return{y:v.camera.position.y,x:v.camera.position.x,z:v.camera.position.z,pitch:v.camera.rotation.x,head:m.root.visible,hands:v.hands.visible,incense:v.heldIncense.visible,arms:v.handArms.map(a=>a.position.y)};});
-    const stand=await state();expect(stand.y).toBeCloseTo(2.02,1);expect(stand.x).toBeCloseTo(-5,1);expect(stand.z).toBeCloseTo(25.5,1);expect(stand.head).toBe(false);expect(stand.hands).toBe(true);
-    await page.screenshot({path:'test-results/first-person-standing.png'});
-    await expect(page.locator('#mouse-look')).not.toBeVisible();
-    await page.locator('#sit').click();await expect.poll(async()=>(await state()).y).toBeLessThan(stand.y-.4);const seated=await state();expect(seated.x).toBeCloseTo(stand.x,3);expect(seated.z).toBeCloseTo(stand.z,3);await page.screenshot({path:'test-results/first-person-seated.png'});
-    await page.locator('#sit').click();await expect.poll(async()=>(await state()).y).toBeGreaterThan(stand.y-.05);
-    await page.locator('#bow').click();await expect.poll(async()=>(await state()).pitch,{intervals:[50]}).toBeLessThan(-.4);const bowed=await state();expect(bowed.y).toBeLessThan(stand.y-.3);expect(bowed.arms[0]).toBeGreaterThan(stand.arms[0]+.1);await page.screenshot({path:'test-results/first-person-bow.png'});
-    await expect.poll(async()=>(await state()).y).toBeGreaterThan(stand.y-.05);await expect.poll(async()=>(await state()).pitch).toBeGreaterThan(-.1);
-    await expect(page.locator('#gentle-motion')).not.toBeVisible();
-    await page.locator('#camera-panorama').click();await expect.poll(async()=>(await state()).head).toBe(true);await expect.poll(async()=>(await state()).hands).toBe(false);await page.locator('#camera-first').click();await expect.poll(async()=>(await state()).head).toBe(false);
+    await page.goto('/');await page.locator('#name').fill('Camera');await page.locator('#join-button').click();
+    await expect(page.locator('#canvas')).toHaveAttribute('data-camera-mode','overhead');await expect(page.locator('#camera-first')).toHaveCount(0);
+    await page.evaluate(async()=>{const{TempleView}=await import('/scene3d.js');await new Promise(resolve=>{const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){render.apply(this,args);window.cameraQA={view:this,id:args[3]};resolve();};});});
+    const state=()=>page.evaluate(()=>{
+      const{view:v,id}=window.cameraQA,m=v.models.get(id),bounds=[];
+      for(const y of [0,2.8]){const point=m.root.position.clone();point.y+=y;point.project(v.camera);bounds.push({x:point.x,y:point.y,z:point.z});}
+      return{height:v.camera.position.y,visible:m.root.visible,offset:m.postureOffset,sit:m.motionOutput.sit,bounds};
+    });
+    const standing=await state();expect(standing.visible).toBe(true);expect(standing.height).toBeGreaterThan(5);expect(standing.height).toBeLessThan(9);
+    await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedInvite=text;}}}));
+    await page.locator('#share-link').click();expect(await page.evaluate(()=>window.copiedInvite)).toBe('http://127.0.0.1:3001/');
+    for(const p of standing.bounds){expect(Math.abs(p.x)).toBeLessThan(.95);expect(Math.abs(p.y)).toBeLessThan(.95);expect(p.z).toBeLessThan(1);}
+    await page.screenshot({path:`test-results/overhead-standing-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#sit').click();await expect.poll(async()=>(await state()).sit).toBe(1);expect((await state()).offset).toBeLessThan(-.5);
+    await page.evaluate(()=>window.cameraQA.view.yaw=Math.PI);await page.waitForTimeout(500);
+    await page.screenshot({path:`test-results/overhead-meditation-${mobile?'mobile':'desktop'}.png`});
+    await page.locator('#sit').click();await expect.poll(async()=>(await state()).sit).toBe(0);
+    await page.locator('#canvas').focus();await page.keyboard.press('v');await expect(page.locator('#canvas')).toHaveAttribute('data-camera-mode','panorama');
+    await page.keyboard.press('v');await expect(page.locator('#canvas')).toHaveAttribute('data-camera-mode','follow');await page.keyboard.press('v');await expect(page.locator('#canvas')).toHaveAttribute('data-camera-mode','overhead');
+    await page.evaluate(()=>window.cameraQA.view.orbit(0,-300));await page.waitForTimeout(450);
+    const upward=await page.evaluate(()=>{const v=window.cameraQA.view;return{lookingUp:v.look.y>v.camera.position.y,height:v.camera.position.y};});
+    expect(upward.lookingUp).toBe(true);expect(upward.height).toBeGreaterThan(3);
+    await page.screenshot({path:`test-results/overhead-looking-up-${mobile?'mobile':'desktop'}.png`});
     expect(errors).toEqual([]);
-    await page.reload();await page.locator('#name').fill('Nhớ lựa chọn');await page.locator('#join-button').click();await expect(page.locator('#gentle-motion')).not.toBeVisible();
   }finally{await context.close();}
 });
-

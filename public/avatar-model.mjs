@@ -102,27 +102,39 @@ export function createAvatar(appearance){
     arms.push(arm);elbows.push(elbow);wrists.push(wrist);
   }
   cyl(root,0,.72,0,.32,.33,.25,c.pants);
-  const legs=[],knees=[],footMeshes=[];
+  const legs=[],knees=[],ankles=[],footMeshes=[];
   const foot=(...args)=>{const m=ball(...args);footMeshes.push(m);return m;};
   for(const side of [-1,1]){
     const leg=bone(root,side*.19,.72,0),wide=a.pants==='wide',shorts=a.pants==='shorts';
     const knee=bone(leg,0,-.34,0),ankle=bone(knee,0,-.29,0);
     limb(root,leg,knee,ankle,wide?.19:.16,wide?.17:.125,c.pants,shorts?-.3:null);
     if(a.shoes==='sandals'){
-      foot(knee,0,-.275,.075,.15,.09,.245,c.skin);foot(knee,0,-.345,.075,.17,.045,.27,c.shoes);
-      const strap=capsule(knee,0,-.26,.14,.033,.25,c.shoes);strap.rotation.z=Math.PI/2;
+      foot(ankle,0,.015,.075,.15,.09,.245,c.skin);foot(ankle,0,-.055,.075,.17,.045,.27,c.shoes);
+      const strap=capsule(ankle,0,.03,.14,.033,.25,c.shoes);strap.rotation.z=Math.PI/2;
     }else{
-      foot(knee,0,-.265,.07,.17,.105,.265,c.shoes);
-      if(a.shoes==='sneakers'){foot(knee,0,-.355,.07,.175,.025,.27,c.shoeTrim);for(let i=0;i<3;i++){const lace=capsule(knee,0,-.152-i*.004,.08+i*.045,.009,.13,c.shoeTrim);lace.rotation.z=Math.PI/2;}}
+      foot(ankle,0,.025,.07,.17,.105,.265,c.shoes);
+      if(a.shoes==='sneakers'){foot(ankle,0,-.065,.07,.175,.025,.27,c.shoeTrim);for(let i=0;i<3;i++){const lace=capsule(ankle,0,.138-i*.004,.08+i*.045,.009,.13,c.shoeTrim);lace.rotation.z=Math.PI/2;}}
     }
-    legs.push(leg);knees.push(knee);
+    legs.push(leg);knees.push(knee);ankles.push(ankle);
   }
   const heldIncense=group(body,0,.65,.58);cyl(heldIncense,0,.24,0,.012,.012,.52,'#ab7852');ball(heldIncense,0,.505,0,.021,.025,.021,'#e8a062');heldIncense.visible=false;
   const shadowPixels=new Uint8Array(32*32*4);for(let y=0;y<32;y++)for(let x=0;x<32;x++){const r=Math.hypot((x-15.5)/16,(y-15.5)/16),i=(y*32+x)*4;shadowPixels[i]=58;shadowPixels[i+1]=62;shadowPixels[i+2]=43;shadowPixels[i+3]=Math.round(Math.max(0,1-r)**2*140);}
   const shadowMap=new THREE.DataTexture(shadowPixels,32,32,THREE.RGBAFormat);shadowMap.needsUpdate=true;
   const shadow=new THREE.Mesh(new THREE.PlaneGeometry(1.12,.72),new THREE.MeshBasicMaterial({map:shadowMap,transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.012;root.add(shadow);
   const seed=JSON.stringify(a).split('').reduce((s,char)=>(s*31+char.charCodeAt(0))%2147483647,19);
-  const result={root,body,head,shirt,hair,eyes,arms,elbows,wrists,legs,knees,footMeshes,footMatrix:new THREE.Matrix4(),inverseRoot:new THREE.Matrix4(),heldIncense,shadow,motion:createAvatarMotion(seed),appearance:a,signature:JSON.stringify(a),heading:Math.PI,geometries,materials};
+  const down=new THREE.Vector3(0,-1,0);
+  const seatedLegs=[-1,1].map(side=>{
+    const upper=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(side*.70,-.12,.70).normalize());
+    const lower=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(-side*.98,-.10,.15).normalize());
+    const foot=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-side*1.3);
+    return{upper,knee:upper.clone().invert().multiply(lower),ankle:lower.clone().invert().multiply(foot)};
+  });
+  const seatedArms=[-1,1].map(side=>{
+    const upper=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(side*.10,-.76,.64).normalize());
+    const lower=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(-side*.95,side*.16,.27).normalize());
+    return{upper,elbow:upper.clone().invert().multiply(lower)};
+  });
+  const result={root,body,head,shirt,hair,eyes,arms,elbows,wrists,legs,knees,ankles,seatedLegs,seatedArms,footMeshes,footMatrix:new THREE.Matrix4(),inverseRoot:new THREE.Matrix4(),heldIncense,shadow,motion:createAvatarMotion(seed),appearance:a,signature:JSON.stringify(a),heading:Math.PI,geometries,materials};
   poseAvatar(result,{action:'stand'},0,1);
   result.motion.nextBlink=null;
   return result;
@@ -143,17 +155,16 @@ export function poseAvatar(model,player,time,dt){
   const clasp=Math.max(sit,prayer);
   model.arms.forEach((arm,i)=>{
     const side=i===0?-1:1,swing=Math.sin(phase+i*Math.PI)*moveBlend;
-    arm.rotation.x=damp(arm.rotation.x,.04+swing*.4*(1-clasp)-clasp*.94-incense*.65+reach*.2);
-    arm.rotation.z=damp(arm.rotation.z,-side*(.08+clasp*.8-reach*.12));
-    model.elbows[i].rotation.x=damp(model.elbows[i].rotation.x,-.1-clasp*.5-incense*.1);
+    arm.rotation.set(.04+swing*.4*(1-clasp)-prayer*.94-incense*.65+reach*.2,0,-side*(.08+prayer*.8-reach*.12));
+    arm.quaternion.slerp(model.seatedArms[i].upper,sit);
+    model.elbows[i].rotation.set(-.1-prayer*.5-incense*.1,0,0);model.elbows[i].quaternion.slerp(model.seatedArms[i].elbow,sit);
     model.wrists[i].rotation.y=damp(model.wrists[i].rotation.y,side*clasp*.4);
   });
   model.legs.forEach((leg,i)=>{
-    const side=i===0?-1:1,swing=Math.sin(phase+i*Math.PI)*moveBlend;
-    leg.rotation.x=damp(leg.rotation.x,-swing*.48*(1-sit)-sit*1.35-bow*.3);
-    leg.rotation.z=damp(leg.rotation.z,side*sit*.55);
-    model.knees[i].rotation.x=damp(model.knees[i].rotation.x,.04+Math.max(0,swing)*.42*(1-sit)+sit*1.95+bow*.65);
-    model.knees[i].rotation.z=damp(model.knees[i].rotation.z,-side*sit*.95);
+    const swing=Math.sin(phase+i*Math.PI)*moveBlend,seat=model.seatedLegs[i];
+    leg.rotation.set(-swing*.48-bow*.3,0,0);leg.quaternion.slerp(seat.upper,sit);
+    model.knees[i].rotation.set(.04+Math.max(0,swing)*.42+bow*.65,0,0);model.knees[i].quaternion.slerp(seat.knee,sit);
+    model.ankles[i].quaternion.identity().slerp(seat.ankle,sit);
   });
   // Solve the lowest point of the ellipsoid shoes in model coordinates. The
   // planted foot stays on the floor instead of clipping when knees bend.

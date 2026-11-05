@@ -27,9 +27,9 @@ for(const mobile of [false,true])test(`take a broom, sweep shared leaves and ear
     await moveUntil(-1,'#broom-pickup');await expect(page.locator('#broom-pickup')).toBeVisible();
     await expect(page.locator('#broom-label')).toHaveText('Lấy chổi');await expect(page.locator('#sweep-leaves')).not.toBeVisible();await touch('#broom-pickup');
     await expect(page.locator('#broom-pickup')).toHaveAttribute('aria-pressed','true');
-    await expect.poll(()=>page.evaluate(()=>window.yardQA.handBroom.visible)).toBe(true);
+    await expect.poll(()=>page.evaluate(()=>[...window.yardQA.yardCare.carried.values()].some(b=>b.visible))).toBe(true);
     await moveUntil(-1,'#sweep-leaves');await expect(page.locator('#sweep-leaves')).toBeVisible();
-    await page.evaluate(()=>{const v=window.yardQA,p=v.yardCare.patches.get('leaves-0').patch;v.yaw=Math.atan2(v.camera.position.x-(p.x-500)/10,v.camera.position.z-(p.y-350)/10);v.eyePitch=.5;});
+    await page.evaluate(()=>{const v=window.yardQA,p=v.yardCare.patches.get('leaves-0').patch;v.yaw=Math.atan2(v.camera.position.x-(p.x-500)/10,v.camera.position.z-(p.y-350)/10);v.pitch=.65;});
     await page.waitForTimeout(250);await page.screenshot({path:`test-results/sweeping-${mobile?'mobile':'desktop'}.png`});
     await touch('#sweep-leaves');
     await expect(page.locator('#blessing-score')).toHaveText('1');await expect.poll(()=>page.evaluate(()=>window.yardQA.yardCare.patches.get('leaves-0').mesh.visible)).toBe(false);
@@ -44,7 +44,7 @@ for(const mobile of [false,true])test(`take a broom, sweep shared leaves and ear
       await page.waitForTimeout(1000);await page.locator('#camera-panorama').click();await page.locator('#camera-reset').click();await page.waitForTimeout(900);await page.screenshot({path:'test-results/street-lights-overview.png'});
     }
     await page.evaluate(()=>window.yardQA.resetCamera());await moveUntil(1,'#broom-pickup');await expect(page.locator('#broom-label')).toHaveText('Trả chổi');await touch('#broom-pickup');
-    await expect(page.locator('#broom-label')).toHaveText('Lấy chổi');await expect.poll(()=>page.evaluate(()=>window.yardQA.handBroom.visible)).toBe(false);
+    await expect(page.locator('#broom-label')).toHaveText('Lấy chổi');await expect.poll(()=>page.evaluate(()=>[...window.yardQA.yardCare.carried.values()].some(b=>b.visible))).toBe(false);
     expect(errors).toEqual([]);
   }finally{observer?.disconnect();await context.close();}
 });

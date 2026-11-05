@@ -35,3 +35,24 @@ test('feet stay on the floor through walking, sitting and bowing for every shoe 
     }disposeAvatar(m);
   }
 });
+
+test('meditation lowers the hips to the seat and folds both shins inward with flat feet',async()=>{
+  const {createAvatar,poseAvatar,disposeAvatar}=await modelModule;
+  const {Vector3}=await import('three');
+  for(const gender of ['male','female']){
+    const m=createAvatar(config.defaults(gender));
+    for(let i=0;i<40;i++)poseAvatar(m,{action:'sit'},i*.05,.05);
+    m.root.position.y=m.postureOffset;m.root.updateMatrixWorld(true);
+    assert.ok(m.postureOffset<-.5);
+    for(let i=0;i<2;i++){
+      const hip=m.legs[i].getWorldPosition(new Vector3()),knee=m.knees[i].getWorldPosition(new Vector3()),ankle=m.ankles[i].getWorldPosition(new Vector3());
+      assert.ok(hip.y<.23);assert.ok(Math.abs(knee.x)>Math.abs(hip.x)+.2);
+      assert.ok(Math.abs(ankle.x)<Math.abs(knee.x)-.25);
+      const up=new Vector3(0,1,0).transformDirection(m.ankles[i].matrixWorld);assert.ok(up.y>.99);
+    }
+    const wrists=m.wrists.map(w=>w.getWorldPosition(new Vector3()));
+    assert.ok(wrists[0].distanceTo(wrists[1])<.26,'forearms fold together across the chest');
+    assert.ok(wrists.every(w=>w.y>.6&&w.z>.27),'hands stay in front of the torso');
+    disposeAvatar(m);
+  }
+});

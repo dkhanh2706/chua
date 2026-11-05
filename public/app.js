@@ -6,10 +6,10 @@ import { easeVelocity } from './locomotion.mjs';
   const sound=new TempleSound();
   let muted=false;try{muted=localStorage.getItem('temple-muted')==='true';}catch{}
   let socket=null,myId=null,active=false,joining=false;
-  let target=null,lastFrame=performance.now(),lastSent=0,lastPosition=null,localBowUntil=0,lastIncense=0;
+  let target=null,lastFrame=performance.now(),lastSent=0,lastPosition=null,localBowUntil=0,lastIncense=0,lastHit=-Infinity;
   let toastTimer,pendingJoin,joinTimer,uiTimer=0;
   const players=new Map(),items=new Map(),keys=new Set(),leafPatches=new Map();
-  const {nearestRack,nearestLeaves,SWEEP_DURATION}=window.TempleSweeping;
+  const {nearestRack,nearestLeaves,SWEEP_DURATION,HIT_DURATION,HIT_COOLDOWN}=window.TempleSweeping;
   const joystickInput={x:0,y:0,pointer:null};
   const velocity={x:0,y:0};
   function clearMovement(immediate=true){keys.clear();joystickInput.x=0;joystickInput.y=0;joystickInput.pointer=null;if(immediate){velocity.x=0;velocity.y=0;}$('joystick').style.setProperty('--jx','0px');$('joystick').style.setProperty('--jy','0px');}
@@ -22,6 +22,14 @@ import { easeVelocity } from './locomotion.mjs';
   gameCanvas.addEventListener('render-error',()=>toast('Đồ họa 3D bị gián đoạn. Hãy tải lại trang để vào lại nhé.'));
   gameCanvas.addEventListener('avatar-step',event=>sound.footstep(event.detail.surface));
   function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3500);}
+  $('share-link').onclick=async()=>{
+    const link=new URL('/',location.href).href;
+    try{
+      if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(link);
+      else{const input=document.createElement('textarea');input.value=link;input.style.cssText='position:fixed;top:0;left:-9999px';document.body.append(input);input.select();const copied=document.execCommand('copy');input.remove();if(!copied)throw new Error('copy');}
+      toast(['localhost','127.0.0.1','[::1]'].includes(location.hostname)?'Đã sao chép. Để mời bạn, hãy mở bằng IP cùng Wi-Fi hoặc link website công khai.':'Đã sao chép link · Mời bạn vào cùng sân, tối đa 5 người.');
+    }catch{toast(`Link mời bạn: ${link}`);}
+  };
   function soundUI(){
     $('sound').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 5 6 9H3v6h3l5 4V5Z"/>${muted?'<path d="m16 9 6 6m0-6-6 6"/>':'<path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>'}</svg>`;
     $('sound').setAttribute('aria-label',muted?'Bật âm thanh':'Tắt âm thanh');$('sound').setAttribute('aria-pressed',String(!muted));
@@ -41,8 +49,8 @@ import { easeVelocity } from './locomotion.mjs';
     socket.on('presence',p=>presence(p.online));
     socket.on('joined',data=>{
       myId=data.id;players.clear();items.clear();for(const p of data.players)players.set(p.id,{...p,tx:p.x,ty:p.y});for(const item of data.incense)items.set(item.id,{...item,end:performance.now()+item.ttl});
-      active=true;setJoining(false);target=null;clearMovement();lastPosition=null;localBowUntil=0;lastIncense=0;
-      gameHost.prepend(gameCanvas);document.body.classList.add('playing');view.setActive(true);setCamera('first');
+      active=true;setJoining(false);target=null;clearMovement();lastPosition=null;localBowUntil=0;lastIncense=0;lastHit=-Infinity;
+      gameHost.prepend(gameCanvas);document.body.classList.add('playing');view.setActive(true);setCamera('overhead');
       leafPatches.clear();for(const patch of data.leaves||[])leafPatches.set(patch.id,{...patch,readyAt:performance.now()+patch.readyIn});
       view.yardCare.setPatches([...leafPatches.values()]);updateYardUI(players.get(myId),performance.now());
       sound.setGardenSources(view.garden.audioSources);
@@ -56,7 +64,6 @@ import { easeVelocity } from './locomotion.mjs';
     socket.on('incense-removed',i=>{items.delete(i.id);updatePeople();});
     socket.on('broom-changed',data=>{
       const p=players.get(data.id);if(!p)return;p.hasBroom=data.hasBroom;
-      if(data.id===myId&&!p.hasBroom)view.handBroom.visible=false;
       if(data.id===myId){updateYardUI(p,performance.now());toast(p.hasBroom?'Đã lấy chổi. Tới gần đám lá rồi chạm Quét lá.':'Đã trả chổi lên giá.');}
     });
     socket.on('swept',data=>{
@@ -66,8 +73,20 @@ import { easeVelocity } from './locomotion.mjs';
       if(data.id===myId){target=null;clearMovement();localBowUntil=now+SWEEP_DURATION;updateYardUI(p,now);$('blessing-score').animate([{transform:'scale(1.22)',color:'#b09344'},{transform:'scale(1)',color:'#7c7845'}],{duration:500});toast('Sân sạch thêm một chút · +1 điểm phước lành');}
     });
     socket.on('sweep-error',code=>toast({rack:'Tới gần một giá chổi để lấy hoặc trả chổi nhé.',broom:'Bạn cần lấy chổi ở giá trước nhé.',busy:'Đợi hoàn thành động tác rồi quét tiếp nhé.',empty:'Chỗ này đã sạch lá rồi.',far:'Tới gần đám lá hơn để quét nhé.'}[code]||'Chưa thể quét lá.'));
+    socket.on('broom-swing',data=>{
+      const p=players.get(data.id),now=performance.now();if(!p)return;
+      p.hitStart=now/1000;p.hitHeading=data.heading;
+      if(data.id===myId){lastHit=now;localBowUntil=now+HIT_DURATION;target=null;clearMovement();updateYardUI(p,now);}
+    });
+    socket.on('broom-hit',data=>{
+      const p=players.get(data.id),other=players.get(data.targetId),now=performance.now();if(!p)return;
+      p.blessings=data.blessings;if(other)other.struckStart=now/1000;
+      if(data.id===myId){updateYardUI(p,now);toast(other?`Chổi trúng ${other.name} · −1 phước lành`:'Vung chổi hụt · Không mất phước lành');}
+      else if(data.targetId===myId)toast(`${p.name} vừa đánh chổi · Người đánh mất 1 phước lành`);
+    });
+    socket.on('hit-error',code=>toast({broom:'Bạn cần cầm chổi trước.',busy:'Đợi hoàn thành động tác nhé.',cooldown:'Chờ một chút trước khi vung tiếp.',direction:'Hãy quay về hướng muốn vung chổi.'}[code]||'Chưa thể vung chổi.'));
     socket.on('incense-error',code=>toast({far:'Lại gần lư hương trong chính điện nhé.',cooldown:'Chờ 10 giây giữa hai lần thắp hương nhé.',limit:'Bạn đang có 3 nén hương. Hãy đợi hương tàn.',full:'Lư hương đã đầy. Hãy đợi một chút nhé.'}[code]||'Chưa thể thắp nhang.'));
-    socket.on('disconnect',reason=>{exitMouseLook();clearMovement();target=null;if(active){active=false;$('connection-dialog').showModal();}if(joining){setJoining(false);$('join-error').textContent='Kết nối bị gián đoạn. Bạn thử vào lại nhé.';}});
+    socket.on('disconnect',reason=>{clearMovement();target=null;if(active){active=false;$('connection-dialog').showModal();}if(joining){setJoining(false);$('join-error').textContent='Kết nối bị gián đoạn. Bạn thử vào lại nhé.';}});
     socket.on('connect_error',()=>{if(joining){setJoining(false);$('join-error').textContent='Chưa kết nối được với sân chùa. Bạn thử lại nhé.';}});
   }
   function join(){
@@ -80,12 +99,11 @@ import { easeVelocity } from './locomotion.mjs';
     joinTimer=setTimeout(()=>{if(!joining)return;setJoining(false);socket.disconnect();$('join-error').textContent='Kết nối hơi lâu. Bạn thử vào lại nhé.';if($('connection-dialog').open){$('connection-dialog').close();showHome();}},12000);
   }
   $('join-form').onsubmit=e=>{e.preventDefault();join();};
-  function showHome(){exitMouseLook();active=false;myId=null;players.clear();items.clear();clearMovement();target=null;document.body.classList.remove('playing','first-person','people-open','settings-open');$('people-toggle').setAttribute('aria-expanded','false');$('settings-toggle').setAttribute('aria-expanded','false');previewHost.prepend(gameCanvas);view?.setActive(false);$('game').hidden=true;$('welcome').hidden=false;$('welcome-footer').hidden=false;$('connection-dialog').close();setJoining(false);if(socket)socket.disconnect();sound.setEnabled(false);status();}
+  function showHome(){active=false;myId=null;players.clear();items.clear();clearMovement();target=null;document.body.classList.remove('playing','people-open','settings-open');$('people-toggle').setAttribute('aria-expanded','false');$('settings-toggle').setAttribute('aria-expanded','false');previewHost.prepend(gameCanvas);view?.setActive(false);$('game').hidden=true;$('welcome').hidden=false;$('welcome-footer').hidden=false;$('connection-dialog').close();setJoining(false);if(socket)socket.disconnect();sound.setEnabled(false);status();}
   $('leave').onclick=showHome;$('back-home').onclick=showHome;$('rejoin').onclick=()=>{if(joining)return;join();};
-  $('help').onclick=()=>{exitMouseLook();$('help-dialog').showModal();clearMovement();target=null;};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
-  function exitMouseLook(){if(document.pointerLockElement===gameCanvas)document.exitPointerLock();}
-  function setCamera(mode){if(mode!=='first')exitMouseLook();view?.setMode(mode);for(const key of ['first','panorama','follow'])$('camera-'+key).setAttribute('aria-pressed',String(mode===key));document.body.classList.toggle('first-person',mode==='first');$('view-options').hidden=mode!=='first';}
-  $('camera-first').onclick=()=>setCamera('first');$('camera-panorama').onclick=()=>setCamera('panorama');$('camera-follow').onclick=()=>setCamera('follow');$('camera-in').onclick=()=>view?.zoomBy(.85);$('camera-out').onclick=()=>view?.zoomBy(1.18);$('camera-reset').onclick=()=>view?.resetCamera();
+  $('help').onclick=()=>{$('help-dialog').showModal();clearMovement();target=null;};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
+  function setCamera(mode){view?.setMode(mode);for(const key of ['overhead','panorama','follow'])$('camera-'+key).setAttribute('aria-pressed',String(mode===key));}
+  $('camera-overhead').onclick=()=>setCamera('overhead');$('camera-panorama').onclick=()=>setCamera('panorama');$('camera-follow').onclick=()=>setCamera('follow');$('camera-in').onclick=()=>view?.zoomBy(.85);$('camera-out').onclick=()=>view?.zoomBy(1.18);$('camera-reset').onclick=()=>view?.resetCamera();
   $('people-toggle').onclick=()=>{const open=document.body.classList.toggle('people-open');$('people-toggle').setAttribute('aria-expanded',String(open));};
   $('settings-toggle').onclick=()=>{const open=document.body.classList.toggle('settings-open');$('settings-toggle').setAttribute('aria-expanded',String(open));};
   $('battery-saver').setAttribute('aria-pressed',String(view?.batterySaver??true));
@@ -100,12 +118,6 @@ import { easeVelocity } from './locomotion.mjs';
   stick.addEventListener('pointerdown',e=>{if(!active||joystickInput.pointer!==null||performance.now()<localBowUntil)return;e.preventDefault();joystickInput.pointer=e.pointerId;stick.setPointerCapture(e.pointerId);target=null;moveStick(e);});
   stick.addEventListener('pointermove',moveStick);
   for(const type of ['pointerup','pointercancel','lostpointercapture'])stick.addEventListener(type,e=>{if(joystickInput.pointer===e.pointerId)clearMovement(type!=='pointerup');});
-  $('gentle-motion').setAttribute('aria-pressed',String(view?.gentleMotion??true));
-  $('gentle-motion').onclick=()=>{if(!view)return;view.gentleMotion=!view.gentleMotion;$('gentle-motion').setAttribute('aria-pressed',String(view.gentleMotion));try{localStorage.setItem('temple-gentle-motion',String(view.gentleMotion));}catch{}toast(view.gentleMotion?'Chuyển động tầm mắt nhẹ hơn.':'Chuyển động cúi lạy đầy đủ.');};
-  $('mouse-look').onclick=async()=>{if(document.pointerLockElement===gameCanvas){exitMouseLook();return;}if(!active||view?.mode!=='first')return;if(!gameCanvas.requestPointerLock){toast('Bạn có thể giữ và kéo chuột để nhìn quanh.');return;}try{await gameCanvas.requestPointerLock();}catch{toast('Bạn có thể giữ và kéo chuột để nhìn quanh.');}};
-  document.addEventListener('pointerlockchange',()=>{const locked=document.pointerLockElement===gameCanvas;$('mouse-look').setAttribute('aria-pressed',String(locked));document.body.classList.toggle('mouse-look',locked);clearMovement();target=null;});
-  document.addEventListener('pointerlockerror',()=>toast('Chưa bật được chế độ chuột. Bạn giữ và kéo để nhìn quanh nhé.'));
-  document.addEventListener('mousemove',e=>{if(active&&view?.mode==='first'&&document.pointerLockElement===gameCanvas)view.orbit(e.movementX,e.movementY);});
   function updatePeople(){
     $('online-count').textContent=`${players.size}/5`;$('people-badge').textContent=`${players.size}/5`;$('incense-count').innerHTML=`${items.size} <small>/ 12 nén</small>`;presence(players.size);
     const list=$('players');list.replaceChildren();for(const p of players.values()){const li=document.createElement('li'),c=document.createElement('canvas'),info=document.createElement('div'),name=document.createElement('strong'),state=document.createElement('small');c.width=60;c.height=72;drawPortrait(c,window.AvatarConfig.normalize(p.avatar,p.character,p.color));info.className='player-info';name.textContent=p.name;state.textContent=p.action==='sit'?'Đang ngồi thiền':p.action==='bow'?(p.ritual?.kind==='incense'?'Đang thắp nhang':'Đang cúi lạy'):'Đang thong thả';info.append(name,state);li.append(c,info);if(p.id===myId){const you=document.createElement('span');you.className='you';you.textContent='bạn';li.append(you);}list.append(li);}
@@ -121,28 +133,33 @@ import { easeVelocity } from './locomotion.mjs';
     const sweeping=me.sweepStart&&now-me.sweepStart*1000<SWEEP_DURATION,canSweep=!!me.hasBroom&&!!patch;
     $('broom-label').textContent=me.hasBroom?'Trả chổi':'Lấy chổi';$('broom-pickup').setAttribute('aria-pressed',String(!!me.hasBroom));$('broom-pickup').hidden=!rack;$('broom-pickup').disabled=!rack||busy;
     $('sweep-leaves').hidden=!canSweep&&!sweeping;$('sweep-leaves').disabled=!canSweep||busy;$('sweep-label').textContent=sweeping?'Đang quét…':'Quét lá';
-    document.querySelector('.yard-tools').hidden=!rack&&!canSweep&&!sweeping;
-    $('broom-hint').textContent=sweeping?'Dọn sân thêm sạch':canSweep?'Chạm để quét · +1 phước lành':me.hasBroom?'Chạm để đặt chổi lại lên giá':'Chạm để lấy chổi trên giá';
+    $('broom-hit').hidden=!me.hasBroom;$('broom-hit').disabled=!me.hasBroom||busy||now-lastHit<HIT_COOLDOWN;
+    $('hit-label').textContent='Var nhau';
+    document.querySelector('.yard-tools').hidden=!rack&&!canSweep&&!sweeping&&!me.hasBroom;
+    $('broom-hint').textContent=sweeping?'Dọn sân thêm sạch':me.hasBroom?'G / Var nhau: vung chổi phía trước · Trúng người mới mất 1 phước':canSweep?'Chạm để quét · +1 phước lành':'Chạm để lấy chổi trên giá';
+    if(me.hitStart&&now-me.hitStart*1000<HIT_DURATION)$('location-hint').textContent='Đang vung chổi về phía trước…';
     if(sweeping)$('location-hint').textContent='Đang quét lá…';
   }
   function takeBroom(){const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil)return;const rack=nearestRack(me);if(!rack){toast('Tới giá chổi gần cổng hoặc bên vườn để lấy chổi nhé.');return;}sendMove(true);socket.emit('broom',{rackId:rack.id,take:!me.hasBroom});}
   function sweepLeaves(){const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil)return;if(!me.hasBroom){toast('Tới giá chổi để lấy chổi trước nhé.');return;}const patch=nearestLeaves(me,leafPatches.values(),performance.now());if(!patch){toast('Tới gần đám lá dưới cây để quét nhé.');return;}target=null;clearMovement();sendMove(true);socket.emit('sweep',{patchId:patch.id});}
+  function hitBroom(){const me=players.get(myId),now=performance.now();if(!active||!me||!me.hasBroom||me.action!=='stand'||now<localBowUntil||now-lastHit<HIT_COOLDOWN)return;const model=view.models.get(myId);if(!model)return;const heading=model.root.rotation.y;target=null;clearMovement();sendMove(true);socket.emit('broom-hit',{heading});}
+  $('broom-hit').onclick=hitBroom;
   $('broom-pickup').onclick=takeBroom;$('sweep-leaves').onclick=sweepLeaves;
   const movementKeys=['w','a','s','d','arrowup','arrowleft','arrowdown','arrowright'];
   document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'&&document.pointerLockElement===gameCanvas){exitMouseLook();return;}
     if(e.target.closest('input,textarea')||$('help-dialog').open||$('connection-dialog').open)return;
     const key=e.key.toLowerCase();if(key==='m'&&!e.repeat){e.preventDefault();toggleSound();return;}
     if(!active)return;
     if(movementKeys.includes(key)){e.preventDefault();if(performance.now()<localBowUntil)return;keys.add(key);target=null;}
     if(e.repeat)return;
-    if(key==='v'){e.preventDefault();const modes=['first','panorama','follow'];setCamera(modes[(modes.indexOf(view.mode)+1)%modes.length]);}if(key==='r'){e.preventDefault();view.resetCamera();}
+    if(key==='v'){e.preventDefault();const modes=['overhead','panorama','follow'];setCamera(modes[(modes.indexOf(view.mode)+1)%modes.length]);}if(key==='r'){e.preventDefault();view.resetCamera();}
     if(key==='e'){e.preventDefault();action('sit');}if(key===' '){e.preventDefault();action('bow');}if(key==='f'){e.preventDefault();plant();}
+    if(key==='g'){e.preventDefault();hitBroom();}
   });
   document.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>{clearMovement();target=null;});document.addEventListener('visibilitychange',()=>{clearMovement();target=null;lastFrame=performance.now();});
   // A tap chooses a ground point via raycasting; a drag rotates the camera.
   const pointers=new Map();let gesture=null,pinchDistance=0;
-  gameCanvas.addEventListener('pointerdown',e=>{if(!active||document.pointerLockElement===gameCanvas)return;gameCanvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});gesture={x:e.clientX,y:e.clientY,moved:false};if(pointers.size===2){const[a,b]=[...pointers.values()];pinchDistance=Math.hypot(a.x-b.x,a.y-b.y);gesture.moved=true;}});
+  gameCanvas.addEventListener('pointerdown',e=>{if(!active)return;gameCanvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});gesture={x:e.clientX,y:e.clientY,moved:false};if(pointers.size===2){const[a,b]=[...pointers.values()];pinchDistance=Math.hypot(a.x-b.x,a.y-b.y);gesture.moved=true;}});
   gameCanvas.addEventListener('pointermove',e=>{const previous=pointers.get(e.pointerId);if(!active||!previous)return;const dx=e.clientX-previous.x,dy=e.clientY-previous.y;pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===2){const[a,b]=[...pointers.values()],distance=Math.hypot(a.x-b.x,a.y-b.y);if(distance>1&&pinchDistance>1)view.zoomBy(pinchDistance/distance);pinchDistance=distance;gesture.moved=true;}else if(gesture&&(gesture.moved||Math.hypot(e.clientX-gesture.x,e.clientY-gesture.y)>6)){gesture.moved=true;view.orbit(dx,dy);}});
   gameCanvas.addEventListener('pointercancel',e=>{pointers.delete(e.pointerId);gesture=null;});
   gameCanvas.addEventListener('pointerup',e=>{pointers.delete(e.pointerId);const tap=gesture&&!gesture.moved&&!pointers.size;gesture=null;if(tap)walkTo(e.clientX,e.clientY);});
@@ -151,17 +168,19 @@ import { easeVelocity } from './locomotion.mjs';
   function walkTo(clientX,clientY){
     if(!active||performance.now()<localBowUntil)return;const hit=view.pick(clientX,clientY);if(!hit)return;
     let {x,y}=hit;
+    const lotus=window.lotusAt(x,y);if(lotus){x=lotus.x;y=lotus.y;}
     if(Math.hypot(x-URN.x,y-URN.y)<38){x=URN.x;y=URN.y+53;}
     if(!validPosition(x,y)){toast('Đi trên sân và qua cầu để sang bờ suối nhé.');return;}
-    const me=players.get(myId);const route=findRoute(me.x,me.y,x,y);if(!route){toast('Chỗ đó hơi xa lối đi. Bạn thử chạm gần hơn nhé.');return;}target={x,y,route};clearMovement();$('canvas').focus({preventScroll:true});
+    const me=players.get(myId);const route=findRoute(me.x,me.y,x,y);if(!route){toast('Chỗ đó hơi xa lối đi. Bạn thử chạm gần hơn nhé.');return;}target={x,y,route,meditate:!!lotus};clearMovement();$('canvas').focus({preventScroll:true});
   }
   // A small navigation grid routes touches around the pond, stream and incense burner.
   function findRoute(sx,sy,ex,ey){
     const size=20,cols=50,rows=35,idx=(x,y)=>y*cols+x;
+    const canCross=(ax,ay,bx,by)=>[0,.25,.5,.75,1].every(t=>validPosition(ax+(bx-ax)*t,ay+(by-ay)*t));
     const start={x:Math.floor(sx/size),y:Math.floor(sy/size)},end={x:Math.floor(ex/size),y:Math.floor(ey/size)};
     const queue=[start],came=new Map([[idx(start.x,start.y),null]]);let head=0,found=false;
     while(head<queue.length){const p=queue[head++];if(p.x===end.x&&p.y===end.y){found=true;break;}
-      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,y=p.y+dy,key=idx(x,y);if(x<0||y<0||x>=cols||y>=rows||came.has(key)||!validPosition(x*size+size/2,y*size+size/2))continue;came.set(key,p);queue.push({x,y});}}
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,y=p.y+dy,key=idx(x,y);if(x<0||y<0||x>=cols||y>=rows||came.has(key)||!canCross(p.x*size+size/2,p.y*size+size/2,x*size+size/2,y*size+size/2))continue;came.set(key,p);queue.push({x,y});}}
     if(!found)return null;
     const route=[{x:ex,y:ey}];let p=end;while(p&&!(p.x===start.x&&p.y===start.y)){route.push({x:p.x*size+size/2,y:p.y*size+size/2});p=came.get(idx(p.x,p.y));}return route.reverse();
   }
@@ -180,12 +199,12 @@ import { easeVelocity } from './locomotion.mjs';
           if(dx||dy){const direction=view.movement(dx,dy);dx=direction.x;dy=direction.y;}
           if(target&&target.route.length){let point=target.route[0],distance=Math.hypot(point.x-me.x,point.y-me.y);while(distance<3&&target.route.length>1){target.route.shift();point=target.route[0];distance=Math.hypot(point.x-me.x,point.y-me.y);}dx=distance>.001?(point.x-me.x)/distance:0;dy=distance>.001?(point.y-me.y)/distance:0;}
         }
-        const length=Math.hypot(dx,dy),speed=(view.mode==='first'?75:180)*Math.min(1,length);
+        const length=Math.hypot(dx,dy),speed=(view.mode==='overhead'?100:180)*Math.min(1,length);
         velocity.x=easeVelocity(velocity.x,length?dx/length*speed:0,dt);velocity.y=easeVelocity(velocity.y,length?dy/length*speed:0,dt);
         if(now<localBowUntil||me.action!=='stand'){velocity.x=0;velocity.y=0;}
         dx=velocity.x*dt;dy=velocity.y*dt;
         const oldX=me.x,oldY=me.y;
-        if(target?.route.length===1&&Math.hypot(target.x-me.x,target.y-me.y)<=Math.max(2,Math.hypot(dx,dy))){me.x=target.x;me.y=target.y;target=null;velocity.x=0;velocity.y=0;}
+        if(target?.route.length===1&&Math.hypot(target.x-me.x,target.y-me.y)<=Math.max(2,Math.hypot(dx,dy))){me.x=target.x;me.y=target.y;const meditate=target.meditate;target=null;velocity.x=0;velocity.y=0;if(meditate){sendMove(true);action('sit');}}
         else{if(validPosition(me.x+dx,me.y))me.x+=dx;else velocity.x=0;if(validPosition(me.x,me.y+dy))me.y+=dy;else velocity.y=0;}
         me.moving=Math.hypot(me.x-oldX,me.y-oldY)>.003;if(me.x!==oldX)me.face=me.x>oldX?1:-1;
         if(me.action==='bow'&&now>=localBowUntil){me.action='stand';updatePeople();}
@@ -198,8 +217,8 @@ import { easeVelocity } from './locomotion.mjs';
           $('incense').disabled=!near||now<localBowUntil||cooldown>0&&lastIncense>0;
           $('sit').disabled=now<localBowUntil;$('bow').disabled=now<localBowUntil;
           $('incense').title=near?'Thắp một nén hương (F)':'Lại gần lư hương trong chính điện';
-          const moveHint=view.mobile?'Kéo cần để di chuyển · Vuốt để nhìn quanh':view.mode==='first'?(document.pointerLockElement===gameCanvas?'Di chuột để nhìn · WASD để đi · Esc trả lại con trỏ':'Kéo để nhìn quanh · WASD hoặc mũi tên để đi'):'Chạm vào sân để bước đi';
-          $('location-hint').textContent=now<localBowUntil?(me.action==='bow'?(me.ritual?.kind==='incense'?'Đang dâng hương…':'Đang cúi lạy…'):'Đang đứng dậy…'):near?(cooldown>0&&lastIncense>0?`Chờ ${cooldown} giây để thắp nén tiếp theo`:'Lư hương ở ngay đây · Bấm F hoặc Thắp nhang'):moveHint;
+          const moveHint=view.mobile?'Kéo cần để di chuyển · Vuốt để nhìn quanh':'Kéo để xoay góc nhìn · WASD để đi · Chạm vào sân để bước đi';
+          $('location-hint').textContent=now<localBowUntil?(me.action==='bow'?(me.ritual?.kind==='incense'?'Đang dâng hương…':'Đang cúi lạy…'):'Đang đứng dậy…'):window.lotusAt(me.x,me.y)?(me.action==='sit'?'Thả lỏng trên lá sen · Lắng nghe mặt hồ':'Lá sen thiền · Bấm E hoặc Ngồi thiền'):near?(cooldown>0&&lastIncense>0?`Chờ ${cooldown} giây để thắp nén tiếp theo`:'Lư hương ở ngay đây · Bấm F hoặc Thắp nhang'):moveHint;
           $('sit-label').textContent=me.action==='sit'?'Đứng dậy':'Ngồi thiền';$('sit').setAttribute('aria-pressed',String(me.action==='sit'));
           updateYardUI(me,now);
         }

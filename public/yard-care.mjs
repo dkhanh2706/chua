@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {makeLeafGeometry} from './garden.mjs';
 import {seededRandom} from './garden-layout.mjs';
+import {RIGHT_HAND,broomStrike,strikeBroomQuaternion} from './broom-motion.mjs';
 
 const UP=new THREE.Vector3(0,1,0);
 function add(parent,geometry,material,x=0,y=0,z=0,sx=1,sy=1,sz=1){const m=new THREE.Mesh(geometry,material);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
@@ -110,8 +111,10 @@ export class YardCare{
       broom.visible=!(p.id===myId&&first)&&p.action==='stand';if(!broom.visible)continue;
       const model=models.get(p.id);if(!model)continue;
       const sweep=THREE.MathUtils.clamp((time-(p.sweepStart??-100))/.9,0,1),swing=Math.sin(sweep*Math.PI)*.75;
-      model.root.updateMatrixWorld(true);model.wrists[1].getWorldPosition(broom.position);
-      broom.rotation.set(-.25,model.root.rotation.y,-.15+swing);broom.scale.setScalar(.7);
+      model.root.updateMatrixWorld(true);broom.position.set(0,-.08,.018);model.wrists[RIGHT_HAND].localToWorld(broom.position);
+      broom.rotation.set(-.25,0,-.15+swing);broom.scale.setScalar(.7);
+      const strike=broomStrike(time,p.hitStart);if(strike)broom.quaternion.slerp(strikeBroomQuaternion(strike),strike.blend);
+      broom.rotateOnWorldAxis(UP,model.root.rotation.y);
       const grip=new THREE.Vector3(0,.945,0).applyQuaternion(broom.quaternion);broom.position.sub(grip);
     }
   }

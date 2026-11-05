@@ -49,8 +49,8 @@ test('mobile supports walking and looking with two touches, releasing stops move
     expect(Math.abs((await snapshot()).yaw-before.yaw)).toBeGreaterThan(.1);
     await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await page.waitForTimeout(150);const stopped=await snapshot();await page.waitForTimeout(300);const after=await snapshot();expect(Math.hypot(after.x-stopped.x,after.z-stopped.z)).toBeLessThan(.08);
     await expect(page.locator('#people-panel')).not.toBeVisible();await expect(page.locator('#people-toggle')).not.toBeVisible();
-    await page.locator('#settings-toggle').tap();await expect(page.locator('#battery-saver')).not.toBeVisible();await expect(page.locator('#camera-first')).toBeVisible();await page.locator('#settings-toggle').tap();await expect(page.locator('#camera-first')).not.toBeVisible();
-    await page.screenshot({path:'test-results/mobile-first-person.png'});
+    await page.locator('#settings-toggle').tap();await expect(page.locator('#battery-saver')).not.toBeVisible();await expect(page.locator('#camera-overhead')).toBeVisible();await page.locator('#settings-toggle').tap();await expect(page.locator('#camera-overhead')).not.toBeVisible();
+    await page.screenshot({path:'test-results/mobile-overhead.png'});
     await context.setOffline(true);await page.waitForTimeout(100);await context.setOffline(false);
     await expect(page.locator('body')).toHaveJSProperty('scrollWidth',390);
   }finally{await context.close();}

@@ -3,15 +3,16 @@ const http = require('node:http');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { Server } = require('socket.io');
-const { validPosition, URN, WORLD } = require('./public/world');
+const { validPosition,groundHeight, URN, WORLD } = require('./public/world');
 const AvatarConfig = require('./public/avatar-config');
-const {BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN}=require('./public/sweeping');
+const {BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN,HIT_RANGE,HIT_DURATION,HIT_CONTACT,HIT_COOLDOWN}=require('./public/sweeping');
 
 function createTemple(options = {}) {
   const app = express();
   const server = http.createServer(app);
   const io = new Server(server, { maxHttpBufferSize: 4096 });
   const players = new Map();
+  const swingTimers=new Set();
   const incense = new Map();
   const leafPatches=new Map(LEAF_PATCHES.map(p=>[p.id,{...p,availableAt:0}]));
   const password = options.password ?? process.env.ROOM_PASSWORD;
@@ -38,7 +39,7 @@ function createTemple(options = {}) {
       const occupied = new Set([...players.values()].map(p => p.spawn));
       const spawn = [0, 1, 2, 3, 4].find(n => !occupied.has(n));
       const avatar = AvatarConfig.normalize(input.avatar, input.character, input.color);
-      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand', lastIncense: -Infinity, bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0 };
+      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand', lastIncense: -Infinity, bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0,lastHit:-Infinity };
       players.set(socket.id, p);
       socket.join('temple');
       socket.emit('joined', { id: p.id, players: [...players.values()].map(publicPlayer), incense: [...incense.values()].map(publicIncense),leaves:[...leafPatches.values()].map(publicPatch) });
@@ -99,6 +100,36 @@ function createTemple(options = {}) {
       patch.availableAt=time+LEAF_RESPAWN;p.blessings++;p.sweepUntil=time+SWEEP_DURATION;
       io.to('temple').emit('swept',{id:p.id,blessings:p.blessings,patch:publicPatch(patch)});
     });
+    socket.on('broom-hit',input=>{
+      const p=players.get(socket.id);if(!p)return;
+      const time=now(),fail=code=>socket.emit('hit-error',code);
+      if(!p.hasBroom)return fail('broom');
+      if(p.action!=='stand'||p.bowUntil>time||p.sweepUntil>time)return fail('busy');
+      if(time-p.lastHit<HIT_COOLDOWN)return fail('cooldown');
+      if(typeof input?.heading!=='number'||!Number.isFinite(input.heading))return fail('direction');
+      const heading=((input.heading%(Math.PI*2))+Math.PI*2)%(Math.PI*2);
+      p.lastHit=time;p.sweepUntil=time+HIT_DURATION;
+      io.to('temple').emit('broom-swing',{id:p.id,heading,duration:HIT_DURATION});
+      // Resolve contact at the forward part of the swing, so another player can dodge.
+      const timer=setTimeout(()=>{
+        swingTimers.delete(timer);if(players.get(p.id)!==p)return;
+        let target=null,nearest=HIT_RANGE;
+        for(const other of players.values()){
+          if(other.id===p.id)continue;
+          const dx=other.x-p.x,dy=other.y-p.y,distance=Math.hypot(dx,dy);
+          if(distance>nearest||dx*Math.sin(heading)+dy*Math.cos(heading)<distance*Math.SQRT1_2)continue;
+          let clear=true;
+          for(let i=0;i<=10;i++){
+            const t=i/10,x=p.x+dx*t,y=p.y+dy*t;
+            if(!validPosition(x,y)||Math.abs(groundHeight(x,y)-groundHeight(p.x,p.y))>.55){clear=false;break;}
+          }
+          if(clear){target=other;nearest=distance;}
+        }
+        if(target)p.blessings-=1;
+        io.to('temple').emit('broom-hit',{id:p.id,targetId:target?.id??null,blessings:p.blessings});
+      },HIT_CONTACT);
+      swingTimers.add(timer);
+    });
     socket.on('disconnect', () => {
       if (!players.delete(socket.id)) return;
       io.to('temple').emit('player-left', { id: socket.id });
@@ -116,7 +147,7 @@ function createTemple(options = {}) {
   const incenseTimer = setInterval(() => {
     for (const [id, i] of incense) if (now() >= i.expiresAt) { incense.delete(id); io.to('temple').emit('incense-removed', { id }); }
   }, 1000);
-  server.on('close', () => { clearInterval(stateTimer); clearInterval(incenseTimer); });
+  server.on('close', () => { clearInterval(stateTimer); clearInterval(incenseTimer);for(const timer of swingTimers)clearTimeout(timer); });
   return { app, server, io, players, incense,leafPatches };
 }
 if (require.main === module) {

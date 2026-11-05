@@ -16,15 +16,15 @@ for(const mobile of [false,true])test(`walk over the arched bridge and render fl
   }
   try{
     await page.goto('/');await page.locator('#name').fill('Qua cau');await page.locator('#join-button').click();
-    await page.evaluate(async()=>{const {TempleView}=await import('/scene3d.js');await new Promise(resolve=>{const original=TempleView.prototype.render;TempleView.prototype.render=function(...args){original.apply(this,args);TempleView.prototype.render=original;window.riverQA=this;resolve();};});});
-    await forwardUntil(()=>window.riverQA.camera.position.z<15.8);await page.evaluate(()=>window.riverQA.yaw=-Math.PI/2);
-    await forwardUntil(()=>window.riverQA.camera.position.x<(riverX(505)-500)/10&&window.riverQA.camera.position.x>(riverX(505)-500)/10-7.2);
+    await page.evaluate(async()=>{const {TempleView}=await import('/scene3d.js');await new Promise(resolve=>{const original=TempleView.prototype.render;TempleView.prototype.render=function(...args){original.apply(this,args);TempleView.prototype.render=original;window.riverQA=this;window.riverBody=this.models.get(args[3]).root;resolve();};});});
+    await forwardUntil(()=>window.riverBody.position.z<15.8);await page.evaluate(()=>window.riverQA.yaw=-Math.PI/2);
+    await forwardUntil(()=>window.riverBody.position.x<(riverX(505)-500)/10&&window.riverBody.position.x>(riverX(505)-500)/10-7.2);
     await page.screenshot({path:`test-results/bridge-approach-${mobile?'mobile':'desktop'}.png`});
-    await forwardUntil(()=>window.riverQA.camera.position.x>(riverX(505)-500)/10-.2);
-    expect(await page.evaluate(()=>window.riverQA.camera.position.y)).toBeGreaterThan(3);
-    await page.screenshot({path:`test-results/bridge-first-person-${mobile?'mobile':'desktop'}.png`});
-    await forwardUntil(()=>window.riverQA.camera.position.x>(riverX(505)-500)/10+7.2);
-    expect(await page.evaluate(()=>window.riverQA.camera.position.y)).toBeCloseTo(2.02,1);
+    await forwardUntil(()=>window.riverBody.position.x>(riverX(505)-500)/10-.2);
+    expect(await page.evaluate(()=>window.riverBody.position.y)).toBeGreaterThan(.9);
+    await page.screenshot({path:`test-results/bridge-overhead-${mobile?'mobile':'desktop'}.png`});
+    await forwardUntil(()=>window.riverBody.position.x>(riverX(505)-500)/10+7.2);
+    expect(await page.evaluate(()=>window.riverBody.position.y)).toBeCloseTo(.025,1);
     const before=await page.evaluate(()=>Array.from(window.riverQA.landscape.riverGarden.glints.instanceMatrix.array));await page.waitForTimeout(200);
     expect(await page.evaluate(()=>Array.from(window.riverQA.landscape.riverGarden.glints.instanceMatrix.array))).not.toEqual(before);
     await page.evaluate(()=>{const v=window.riverQA,draw=v.renderer.render.bind(v.renderer),x=(riverX(505)-500)/10;v.renderer.render=(scene,camera)=>{if(scene===v.scene){camera.fov=60;camera.updateProjectionMatrix();camera.position.set(x+13,16,36);camera.lookAt(x,.5,15.5);}draw(scene,camera);};});

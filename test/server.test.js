@@ -2,8 +2,8 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { io } = require('socket.io-client');
 const { createTemple } = require('../server');
-const { validPosition, groundHeight,riverX,bridgeHeight } = require('../public/world');
-const {BROOM_RACKS,LEAF_PATCHES,LEAF_RESPAWN,SWEEP_DURATION}=require('../public/sweeping');
+const { validPosition, groundHeight,riverX,bridgeHeight,LOTUS_SEATS,lotusAt,lotusHeight } = require('../public/world');
+const {BROOM_RACKS,LEAF_PATCHES,LEAF_RESPAWN,SWEEP_DURATION,HIT_RANGE,HIT_DURATION,HIT_COOLDOWN}=require('../public/sweeping');
 
 const event = (socket, name) => new Promise((resolve, reject) => {
   const timeout = setTimeout(() => { socket.off(name, handler); reject(new Error(`Timed out: ${name}`)); }, 3000);
@@ -49,6 +49,31 @@ test('two players share cleared leaves, late joins see the cooldown, and an empt
   a.disconnect();b.disconnect();c.disconnect();await new Promise(resolve=>setTimeout(resolve,60));assert.equal(f.players.size,0);assert.equal(f.leafPatches.get(patch.id).availableAt,0);
 });
 
+test('free broom swings only penalise a front contact and let other players dodge',async t=>{
+  let clock=100000;const f=await fixture(t,{now:()=>clock}),a=await f.client(),b=await f.client();await f.join(a);await f.join(b);
+  const p=f.players.get(a.id),q=f.players.get(b.id);
+  const reject=async(code,input={heading:Math.PI/2})=>{const result=event(a,'hit-error');a.emit('broom-hit',input);assert.equal(await result,code);};
+  const swing=async(heading,afterStart)=>{
+    const started=event(a,'broom-swing'),hit=event(a,'broom-hit'),seen=event(b,'broom-hit');
+    a.emit('broom-hit',{heading,blessings:999,targetId:b.id});
+    const animation=await started;assert.equal(animation.id,a.id);assert.equal(animation.duration,HIT_DURATION);
+    afterStart?.();const result=await hit;assert.deepEqual(await seen,result);return result;
+  };
+  await reject('broom');p.hasBroom=true;await reject('direction',{});await reject('direction',{heading:'east'});
+  // The target need not hold a broom. Behind and beside the swing are misses.
+  assert.equal(q.hasBroom,false);
+  let hit=await swing(-Math.PI/2);assert.equal(hit.targetId,null);assert.equal(p.blessings,0);
+  await reject('busy');clock+=HIT_DURATION+1;await reject('cooldown');clock+=HIT_COOLDOWN;
+  hit=await swing(0);assert.equal(hit.targetId,null);assert.equal(p.blessings,0);clock+=HIT_COOLDOWN;
+  hit=await swing(Math.PI/2);assert.deepEqual(hit,{id:a.id,targetId:b.id,blessings:-1});assert.equal(q.blessings,0);clock+=HIT_COOLDOWN;
+  q.x=p.x+HIT_RANGE+1;hit=await swing(Math.PI/2);assert.equal(hit.targetId,null);assert.equal(p.blessings,-1);clock+=HIT_COOLDOWN;
+  q.x=p.x+25;hit=await swing(Math.PI/2,()=>{q.y+=100;});assert.equal(hit.targetId,null);assert.equal(p.blessings,-1);clock+=HIT_COOLDOWN;
+  Object.assign(p,{x:296,y:230});Object.assign(q,{x:320,y:230});hit=await swing(Math.PI/2);assert.equal(hit.targetId,null);assert.equal(p.blessings,-1);clock+=HIT_COOLDOWN;
+  Object.assign(p,{x:450,y:605});Object.assign(q,{x:475,y:605,action:'sit'});hit=await swing(Math.PI/2);assert.equal(hit.targetId,b.id);assert.equal(p.blessings,-2);
+  const c=await f.client(),joined=await f.join(c);assert.equal(joined.players.find(p=>p.id===a.id).blessings,-2);
+  const unjoined=await f.client();unjoined.emit('broom-hit',{heading:Math.PI/2});await new Promise(resolve=>setTimeout(resolve,40));assert.equal(p.blessings,-2);
+});
+
 test('serves application and exposes the configured capacity', async t => {
   const f = await fixture(t);
   const response = await fetch(f.url); assert.equal(response.status, 200); assert.match(await response.text(), /Chùa Online/);
@@ -91,7 +116,27 @@ test('movement, actions, incense proximity, cooldown, limits, late join, expiry 
   second.disconnect();await new Promise(resolve=>setTimeout(resolve,40));assert.equal(f.players.size,0);
 });
 test('navigation blocks the pond and stream, permits crossing the bridge', () => {
-  assert.equal(validPosition(204,451),false);assert.equal(validPosition(760,400),false);assert.equal(validPosition(760,505),true);assert.equal(validPosition(500,180),false);assert.equal(validPosition(500,335),true);assert.equal(validPosition(500,400),true);
+  assert.equal(validPosition(204,390),false);assert.equal(validPosition(760,400),false);assert.equal(validPosition(760,505),true);assert.equal(validPosition(500,180),false);assert.equal(validPosition(500,335),true);assert.equal(validPosition(500,400),true);
+});
+
+test('lotus seats connect to shore while open water stays blocked and height follows the leaf',()=>{
+  assert.equal(LOTUS_SEATS.length,3);
+  for(let x=262;x<=365;x++)assert.equal(validPosition(x,451),true);
+  for(let y=350;y<=401;y++)assert.equal(validPosition(175,y),true);
+  for(let y=501;y<=555;y++)assert.equal(validPosition(175,y),true);
+  const distances=LOTUS_SEATS.map((p,i)=>Math.hypot(p.x-LOTUS_SEATS[(i+1)%3].x,p.y-LOTUS_SEATS[(i+1)%3].y));
+  assert.ok(Math.max(...distances)-Math.min(...distances)<1);
+  assert.equal(validPosition(204,451),false);
+  for(const seat of LOTUS_SEATS){
+    assert.equal(lotusAt(seat.x,seat.y).id,seat.id);
+    for(let angle=0;angle<Math.PI*2;angle+=.05){
+      const x=seat.x+Math.cos(angle)*seat.radius*1.025,y=seat.y+Math.sin(angle)*seat.radius*1.025;
+      assert.ok(((x-204)/134)**2+((y-451)/86)**2<.85,'whole leaf remains inside the shoreline');
+    }
+    for(const time of [0,1,5,20])assert.equal(groundHeight(seat.x,seat.y,time),lotusHeight(seat.id,time));
+    assert.equal(validPosition(seat.x,seat.y+(seat.y>451?-35:35)),false);
+  }
+  assert.equal(lotusAt(204,390),null);
 });
 
 test('arched bridge rises smoothly from either bank and blocks walking through the rails',()=>{
