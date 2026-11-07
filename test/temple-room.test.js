@@ -28,6 +28,6 @@ test('uniform floor tiles cover the curved perimeter and stop at the doorway',as
     assert.ok(ray.intersectObject(floor).length>0,`perimeter tile at ${a}`);
   }
   const p=geometry.attributes.position;for(let i=0;i<p.count;i++){assert.ok(Math.hypot(p.getX(i),p.getZ(i)-centerZ)<radius+1e-5);assert.ok(p.getZ(i)<=frontZ+1e-5);}
-  assert.equal(SOFA_LAYOUT.length,6);assert.equal(SOFA_SEATS.length,18);
+  assert.equal(SOFA_LAYOUT.length,6);assert.equal(SOFA_SEATS.filter(s=>!s.watching).length,18);
   geometry.dispose();floor.material.dispose();
 });

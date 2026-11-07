@@ -64,7 +64,7 @@ for (const mobile of [false, true])
     }
     try {
       await page.goto("/");
-      await page.locator("#name").fill("Qua cau");
+      await page.locator('#next-button').click();await page.locator("#name").fill("Qua cau");
       await page.locator("#join-button").click();
       await page.evaluate(async () => {
         const { TempleView } = await import("/scene3d.js");

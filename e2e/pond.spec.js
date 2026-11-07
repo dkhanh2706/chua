@@ -6,7 +6,7 @@ for(const mobile of [false,true])test(`lotus pond swims and supports meditation 
   const page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   try{
-    await page.goto('/');await page.locator('#name').fill('Ho sen');await page.locator('#join-button').click();
+    await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill('Ho sen');await page.locator('#join-button').click();
     await page.evaluate(async mobile=>{
       const {TempleView}=await import('/scene3d.js');
       await new Promise(resolve=>{const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){render.apply(this,args);window.pondQA=this;window.pondPlayer=args[1].find(p=>p.id===args[3]);if(window.pondPlayer.action==='sit'&&window.pondPreviousAction!=='sit')window.pondSitHeading=this.models.get(args[3]).motionOutput.heading;window.pondPreviousAction=window.pondPlayer.action;resolve();};});

@@ -146,10 +146,10 @@ export function buildTempleInterior(parent){
   const lights=[];
   for(const x of [-14,14])for(const z of [-11.5,-22]){
     cyl(root,x,9.35+HALL_RAISE/2,z,.045,.045,1.2+HALL_RAISE,wood);cyl(root,x,8.45,z,.43,.36,.85,'#e3bf83');
-    const glow=ball(root,x,8.45,z,.37,.38,.37,'#ecc17f',{emissive:'#ffc275',emissiveIntensity:1.1});
+    const glow=ball(root,x,8.45,z,.37,.38,.37,'#ecc17f',{emissive:'#ffc275',emissiveIntensity:.88});
     for(const y of [8.02,8.88])cyl(root,x,y,z,.46,.46,.1,wood);
-    const light=new THREE.PointLight('#ffc383',28,16,1.6);light.position.set(x,7.8,z);root.add(light);lights.push(light);
+    const light=new THREE.PointLight('#ffc383',22.4,16,1.6);light.position.set(x,7.8,z);root.add(light);lights.push(light);
   }
-  const altarLight=new THREE.PointLight('#ffd698',100,17,1.5);altarLight.position.set(0,6.7,-18.5);root.add(altarLight);lights.push(altarLight);
+  const altarLight=new THREE.PointLight('#ffd698',80,17,1.5);altarLight.position.set(0,6.7,-18.5);root.add(altarLight);lights.push(altarLight);
   return{root,ceiling,doorway,fans,lights,statue,statues,floor,seats,update(time){fans.forEach((fan,i)=>fan.rotation.y=time*(1.65+i*.08));}};
 }

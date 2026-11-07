@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import {makeLeafGeometry} from './garden.mjs';
 import {seededRandom} from './garden-layout.mjs';
-import {RIGHT_HAND,broomStrike,strikeBroomQuaternion} from './broom-motion.mjs';
+import {RIGHT_HAND,BROOM_GRIP} from './broom-motion.mjs';
+import {addNightLight,addLightPool} from './night-lights.mjs';
 
 const UP=new THREE.Vector3(0,1,0);
 function add(parent,geometry,material,x=0,y=0,z=0,sx=1,sy=1,sz=1){const m=new THREE.Mesh(geometry,material);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
@@ -33,7 +34,7 @@ export class YardCare{
   buildLights(){
     this.lights=[];
     const metal=standard('#879394',{metalness:.65,roughness:.4}),dark=standard('#586162',{metalness:.45}),concrete=standard('#a9ab9c');
-    const lens=standard('#f5e6ba',{emissive:'#ffdea0',emissiveIntensity:.65});
+    const lens=standard('#f5e6ba',{emissive:'#ffdea0',emissiveIntensity:0});lens.userData.nightEmission=2.4;
     for(const [x,z]of [[-16,0],[16,0],[-16,20],[16,20],[-10,27],[10,27]]){
       const pole=new THREE.Group();pole.name='vietnam-street-light';pole.position.set(x,0,z);pole.rotation.y=x>0?Math.PI:0;this.root.add(pole);this.lights.push(pole);
       add(pole,new THREE.BoxGeometry(.8,.25,.8),concrete,0,.125,0);
@@ -45,6 +46,8 @@ export class YardCare{
       add(pole,new THREE.TubeGeometry(curve,32,.085,10,false),metal);
       const lamp=add(pole,new THREE.SphereGeometry(1,24,12),dark,2.02,9.02,0,.9,.16,.38);lamp.rotation.z=-.06;
       add(pole,new THREE.BoxGeometry(1.3,.035,.5),lens,2.12,8.91,0);
+      addNightLight(pole,2.12,8.6,0,108,24);
+      addLightPool(pole,2.12,.026,0,7,.85);
       for(let i=0;i<5;i++)add(pole,new THREE.BoxGeometry(.055,.07,.48),metal,1.55+i*.2,9.15,0);
     }
   }
@@ -110,12 +113,9 @@ export class YardCare{
       if(!broom){broom=createBroom();this.root.add(broom);this.carried.set(p.id,broom);}
       broom.visible=!(p.id===myId&&first)&&p.action==='stand';if(!broom.visible)continue;
       const model=models.get(p.id);if(!model)continue;
-      const sweep=THREE.MathUtils.clamp((time-(p.sweepStart??-100))/.9,0,1),swing=Math.sin(sweep*Math.PI)*.75;
       model.root.updateMatrixWorld(true);broom.position.set(0,-.08,.018);model.wrists[RIGHT_HAND].localToWorld(broom.position);
-      broom.rotation.set(-.25,0,-.15+swing);broom.scale.setScalar(.7);
-      const strike=broomStrike(time,p.hitStart);if(strike)broom.quaternion.slerp(strikeBroomQuaternion(strike),strike.blend);
-      broom.rotateOnWorldAxis(UP,model.root.rotation.y);
-      const grip=new THREE.Vector3(0,.945,0).applyQuaternion(broom.quaternion);broom.position.sub(grip);
+      model.body.getWorldQuaternion(broom.quaternion);broom.quaternion.multiply(model.broomQuaternion||new THREE.Quaternion());broom.scale.setScalar(.7);
+      const grip=new THREE.Vector3(0,BROOM_GRIP,0).applyQuaternion(broom.quaternion);broom.position.sub(grip);
     }
   }
   disposeBroom(broom){broom.traverse(o=>{if(o.isInstancedMesh)o.dispose();o.geometry?.dispose();if(o.material)o.material.dispose();});broom.removeFromParent();}

@@ -22,3 +22,23 @@ test('right-handed broom strike sweeps horizontally from the avatar left to righ
   assert.equal(broomStrike(.65,0),null);assert.equal(broomStrike(-.1,0),null);
   disposeAvatar(model);
 });
+
+test('sweeping keeps the bristles above the ground and the tool locked to the wrist at every heading',async()=>{
+  const {Vector3,Quaternion}=await import('three');
+  const {applyBroomPose,BROOM_GRIP}=await import('../public/broom-motion.mjs');
+  const {createAvatar,poseAvatar,disposeAvatar}=await import('../public/avatar-model.mjs');
+  for(const character of ['male','female']){
+    const model=createAvatar(config.defaults(character));let previous;
+    for(let time=0;time<=1;time+=1/120){
+      poseAvatar(model,{action:'stand'},time,1/120);applyBroomPose(model,{sweepStart:0},time);
+      model.root.rotation.y=time*3;model.root.position.y=model.postureOffset;model.root.updateMatrixWorld(true);
+      const hand=new Vector3(0,-.08,.018);model.wrists[0].localToWorld(hand);
+      const orientation=model.body.getWorldQuaternion(new Quaternion()).multiply(model.broomQuaternion);
+      const tip=hand.clone().add(new Vector3(0,-BROOM_GRIP,0).applyQuaternion(orientation));
+      assert.ok(tip.y>.005&&tip.y<.09,`bristles clear the paving at ${time}: ${tip.y}`);
+      assert.ok(model.wrists[0].getWorldQuaternion(new Quaternion()).angleTo(orientation)<1e-6,'hand and handle share the same orientation');
+      if(previous)assert.ok(tip.distanceTo(previous)<.05,'no position jump at sweep boundaries');previous=tip;
+    }
+    disposeAvatar(model);
+  }
+});

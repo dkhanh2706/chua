@@ -1,8 +1,8 @@
 # Chùa Online
 
-Một sân chùa **3D** chung cho tối đa **5 người**, tên tối đa **14 ký tự**. Mặc định dùng camera **Trên đầu**, ở gần phía trên nhân vật để nhìn rõ toàn thân; kéo dọc để ngẩng nhìn lên cao hoặc nhìn xuống. Nhân vật ngồi xuống khoanh chân, khoanh tay trước người khi thiền. Vẫn có camera toàn cảnh và theo chân. Không tài khoản, không chat, không bảng xếp hạng, không database. Dữ liệu người chơi, điểm phước lành, lá và hương chỉ ở trong bộ nhớ server.
+Một sân chùa **3D** chung cho tối đa **6 người**, tên tối đa **14 ký tự**. Mặc định dùng camera **Trên đầu**, ở gần phía trên nhân vật để nhìn rõ toàn thân; kéo dọc để ngẩng nhìn lên cao hoặc nhìn xuống. Nhân vật ngồi xuống khoanh chân, khoanh tay trước người khi thiền. Vẫn có camera toàn cảnh và theo chân. Có chat chung trong chùa; không tài khoản, không bảng xếp hạng, không database. Dữ liệu người chơi, tin nhắn, điểm phước lành, lá và hương chỉ ở trong bộ nhớ server.
 
-Link đang dùng: **https://dichua-d2ud.onrender.com/**. Mở cùng link, chọn nhân vật và nhập tên là vào chung một sân, thấy ngay những người đã vào. Nút **↗** cạnh nút âm thanh sao chép link mời bạn. Tối đa 5 người cùng lúc; khi đủ chỗ, người thứ 6 được báo phòng đầy. Không đặt `ROOM_PASSWORD` trên Render để ai có link cũng vào được.
+Link đang dùng: **https://dichua-d2ud.onrender.com/**. Mở cùng link, chọn nhân vật và nhập tên là vào chung một sân, thấy ngay những người đã vào. Nút **↗** cạnh nút âm thanh sao chép link mời bạn. Tối đa 6 người cùng lúc; khi đủ chỗ, người thứ 7 được báo phòng đầy. Không đặt `ROOM_PASSWORD` trên Render để ai có link cũng vào được.
 
 ## Chạy trên máy
 
@@ -19,12 +19,15 @@ Bạn bè cùng Wi-Fi có thể mở `http://<IP-máy-chạy-server>:3000`. Nế
 
 ## Cách chơi
 
+- **Ghế ngắm trăng và pháo hoa:** bên trái chùa, gần giá chổi phía tây, có hai hàng ghế gỗ, mỗi hàng ba chỗ. Chạm ghế để đi tới và ngồi, hoặc đến gần rồi bấm **Ngắm pháo hoa / E**. Khi có người ngồi, sân tự chuyển sang đêm, mặt trăng có vân bề mặt và quầng sáng dịu xuất hiện cao ở xa, ghế và nhân vật quay về phía cổng, pháo hoa bắn phía ngoài tường phía cổng và hồ sen sáng dịu từ dưới nước. Camera của người ngồi tự hướng ra màn pháo hoa. Kéo chuột hoặc vuốt trái/phải để nhìn quanh; nút đặt lại camera hoặc phím R đưa về góc nhìn mặc định. Bấm **Đứng dậy** hoặc di chuyển để rời ghế; khi hết người ngồi xem, sân trở về chế độ ngày/đêm đã chọn trước đó. Sáu người có thể ngồi cùng lúc, mỗi chỗ chỉ nhận một người.
 - Chọn **Nam** hoặc **Nữ**. Kéo ngang trên bản xem 3D, dùng hai nút xoay hoặc thanh trượt để xem nhân vật đủ **360°**.
 - Các nút **Đứng / Đi / Thiền / Lạy / Hương** ngay dưới bản xem cho phép thử hoạt ảnh trước khi vào sân. Thiền có chuyển tiếp ngồi xuống–đứng dậy; lạy và dâng hương tự hoàn thành trong khoảng 1,5 giây.
 - Chỉnh riêng **áo, quần, giày, tóc**; có đầu trọc, tóc ngắn, rẽ ngôi, bob, đuôi ngựa, hai bím và tóc dài. Bật/tắt **dây chuyền**; nhân vật nữ có thêm **nơ / kẹp tóc**.
 - Mỗi món có màu riêng: áo, quần, giày, đế/dây giày thể thao, tóc, dây buộc tóc, dây chuyền, nơ/kẹp và da. Dùng bảng màu nhanh, ô chọn màu hoặc nhập mã HEX bất kỳ. Tùy chỉnh của nam/nữ được ghi nhớ riêng trên trình duyệt, và gửi cho những người chơi cùng khi bạn vào sân.
-- Nhập tên rồi bấm **Ghé vào chùa**.
-- **Trên điện thoại (thiết bị chơi chính):** giữ và kéo cần tròn bên trái để đi, vuốt lên cảnh bằng ngón còn lại để nhìn quanh. Thả cần hoặc xoay màn hình sẽ dừng di chuyển. Các nút **Ngồi thiền, Cúi lạy, Thắp nhang** ở cuối màn hình; nút **Var nhau** lớn ở phía phải khi cầm chổi. Nút tùy chọn bên phải mở camera và **Đẹp & mượt / Rất nét**; nút **↗** phía trên sao chép link mời bạn. Giao diện hỗ trợ màn hình dọc, ngang và vùng an toàn quanh tai thỏ.
+- Nhập mã nhân vật (nếu có) ở đầu trang, chọn quần áo/phụ kiện rồi bấm **Tiếp theo**. Khung nhập tên hiện ra: điền tên rồi bấm **Ghé vào chùa**. Có thể quay lại sửa nhân vật mà vẫn giữ các lựa chọn và tên đã nhập. Trên điện thoại, nút **Tiếp theo** luôn nằm ở cuối màn hình; vuốt dọc trên nhân vật để cuộn trang, kéo ngang để xoay.
+- Nhập **tom** vào ô **Mã nhân vật** trước khi vào để dùng Tom 3D: lông xám, tai hồng, mắt vàng, bàn tay và bàn chân trắng, đuôi dài. Xem trước và thử hoạt ảnh ngay tại màn hình chọn nhân vật. Để trống mã để dùng nhân vật thường; Tom có cùng chức năng và quy tắc di chuyển.
+- Bấm **Trò chuyện** khi ở trong chùa để gửi tin tới mọi người cùng phòng. Nhấn Enter hoặc **Gửi**, bấm **×** hoặc Escape để đóng. Nút báo số tin chưa đọc khi khung đóng. Mỗi tin tối đa 300 ký tự, cách nhau ít nhất 0,8 giây; giữ 50 tin gần nhất và xóa khi người cuối cùng rời phòng. Gõ chat sẽ dừng di chuyển và không kích hoạt phím hành động.
+- **Trên điện thoại (thiết bị chơi chính):** giữ và kéo cần tròn bên trái để đi, vuốt lên cảnh bằng ngón còn lại để nhìn quanh. Thả cần hoặc xoay màn hình sẽ dừng di chuyển. Các nút **Ngồi thiền, Cúi lạy, Thắp nhang** ở cuối màn hình; nút **Var nhau** lớn ở phía phải khi cầm chổi. Nút tùy chọn bên phải mở các góc nhìn camera; nút **↗** phía trên sao chép link mời bạn. Giao diện hỗ trợ màn hình dọc, ngang và vùng an toàn quanh tai thỏ.
 - **WASD / mũi tên:** đi theo hướng camera. **Chạm / bấm lên sân:** tự đi tới điểm đã chọn, tìm đường vòng hồ và qua cầu.
 - **Qua cầu trên điện thoại:** dùng cần di chuyển để đi lên cầu cong mặt gỗ; tầm mắt tự nâng lên và hạ xuống theo mặt cầu. Lan can hai bên giữ lối đi. Bờ sông có đá xen cỏ thủy sinh, nước gợn và chảy từ thác ra ngoài khuôn viên.
 - **Kéo chuột / kéo một ngón:** xoay góc nhìn. **Cuộn chuột / chụm hai ngón:** phóng gần / thu xa. Có các nút `+`, `−` trên màn hình.
@@ -49,7 +52,7 @@ Nhân vật thở nhẹ, chớp mắt cách nhau 3–6 giây, giữ hướng cu�
 
 Màn tạo nhân vật và sân chùa dùng chung một ngữ cảnh WebGL; sân chỉ được dựng khi vào chơi. Bản xem nhân vật và cảnh chơi đều vẽ theo nhịp làm tươi của trình duyệt, thể hiện nhịp thở, chớp mắt và động tác mượt hơn; dừng vẽ khi trang bị ẩn.
 
-**Đẹp & mượt** là mặc định trên điện thoại, với mục tiêu **60 FPS**, khử răng cưa và bóng mềm. Mức **Rất nét** tăng độ phân giải và chi tiết cây. Mật độ pixel tối đa tương ứng 1,5 / 1,8, có giới hạn tổng số pixel để tránh quá tải ở màn hình lớn. Bóng đổ tập trung quanh nhân vật, được tái sử dụng giữa các lần cập nhật; bóng tiếp xúc dưới chân vẫn đi theo nhân vật. Khói tối đa 12 nén nhang dùng chung một lượt vẽ và giữ đầy đủ 60 cụm khói. Kích thước canvas và cần di chuyển được ghi nhớ; các lớp làm mờ giao diện được giảm để bớt công việc lặp lại khi vừa đi vừa nhìn. Không tự áp chế độ tiết kiệm pin hoặc giới hạn chơi ở 30 FPS. Lựa chọn chất lượng được ghi nhớ. Logic di chuyển và gửi trạng thái mạng hoạt động độc lập.
+**Rất nét** là mặc định trên mọi thiết bị, với mục tiêu **60 FPS**, khử răng cưa, bóng mềm và đầy đủ chi tiết cây. Không có nút đổi chất lượng trên giao diện. Mật độ pixel tối đa 1,8, có giới hạn tổng số pixel để tránh quá tải ở màn hình lớn. Bóng đổ tập trung quanh nhân vật, được tái sử dụng giữa các lần cập nhật; bóng tiếp xúc dưới chân vẫn đi theo nhân vật. Khói tối đa 12 nén nhang dùng chung một lượt vẽ và giữ đầy đủ 60 cụm khói. Kích thước canvas và cần di chuyển được ghi nhớ; các lớp làm mờ giao diện được giảm để bớt công việc lặp lại khi vừa đi vừa nhìn. Không tự áp chế độ tiết kiệm pin hoặc giới hạn chơi ở 30 FPS. Logic di chuyển và gửi trạng thái mạng hoạt động độc lập.
 
 Khuôn viên có **21 cây xanh** với thân cong, vân vỏ, rễ, cành và lá có gân. Tán đầy nhiều lớp được vẽ chung một nhóm; lá riêng vẫn lay nhẹ theo gió. Có ba dáng lá: lá rộng, lá xẻ và lá thuôn. Lá rơi xuất phát từ tán cây, lắc và xoay khi rơi, nằm trên mặt đất rồi mờ dần để tái sử dụng. Mức Đẹp & mượt trên điện thoại giữ khoảng 6.720 lá trên cây và 30 lá rơi; mức Rất nét có khoảng 12.096 lá và 72 lá rơi. Các lá dùng chung hình học/vật liệu và vẽ theo nhóm để giảm tải điện thoại.
 
@@ -79,7 +82,7 @@ Dự án cần dịch vụ chạy **Node.js lâu dài và hỗ trợ WebSocket**
 2. Đăng nhập [Render Dashboard](https://dashboard.render.com/), chọn **New → Blueprint**.
 3. Kết nối tài khoản GitHub, chọn repository và nhánh chứa dự án. Render sẽ đọc `render.yaml` ở thư mục gốc.
 4. Kiểm tra dịch vụ `chua-online`, gói **Free**, vùng **Singapore**, rồi chọn **Deploy Blueprint**. Không chọn Static Site vì dự án cần server để chơi chung.
-5. Khi dịch vụ báo **Live**, mở đường dẫn HTTPS do Render cấp. Có thể kiểm tra `/api/status`: kết quả ban đầu có `online: 0`, `capacity: 5`.
+5. Khi dịch vụ báo **Live**, mở đường dẫn HTTPS do Render cấp. Có thể kiểm tra `/api/status`: kết quả ban đầu có `online: 0`, `capacity: 6`.
 6. Mở cùng đường dẫn trên hai điện thoại hoặc hai trình duyệt và vào sân để kiểm tra chơi chung, rồi gửi đường dẫn cho bạn bè.
 
 Nếu tạo **New → Web Service** thủ công, dùng các giá trị sau:
@@ -101,7 +104,7 @@ Nếu muốn đặt mật khẩu chung, vào dịch vụ → **Environment**, th
 
 Gói Free có thể ngủ sau 15 phút không có lưu lượng; lần mở tiếp theo có thể mất khoảng một phút để khởi động. Nếu muốn vào chơi thường xuyên không phải chờ khởi động, đổi sang gói trả phí chạy liên tục trong Render. Xem [giới hạn gói Free](https://render.com/docs/free) và [cấu hình Blueprint](https://render.com/docs/blueprint-spec).
 
-Chỉ chạy **một instance** vì dữ liệu sân hiện nằm trong RAM, chưa có database dùng chung. Tối đa **5 người** cùng sân. Khi server khởi động/deploy lại, mọi người cần vào lại; hương, trạng thái lá và điểm phước lành của phiên cũ không được giữ. Chưa tạo dịch vụ Render hay URL công khai từ máy này; bước kết nối GitHub và xác nhận deploy thực hiện trong tài khoản Render của bạn.
+Chỉ chạy **một instance** vì dữ liệu sân hiện nằm trong RAM, chưa có database dùng chung. Tối đa **6 người** cùng sân. Khi server khởi động/deploy lại, mọi người cần vào lại; hương, trạng thái lá và điểm phước lành của phiên cũ không được giữ. Chưa tạo dịch vụ Render hay URL công khai từ máy này; bước kết nối GitHub và xác nhận deploy thực hiện trong tài khoản Render của bạn.
 
 ## Kiểm thử
 

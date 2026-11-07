@@ -8,6 +8,37 @@ import { easeVelocity } from './locomotion.mjs';
   let socket=null,myId=null,active=false,joining=false;
   let target=null,lastFrame=performance.now(),lastSent=0,lastPosition=null,localBowUntil=0,incensePending=false,sofaPending=false,lastHit=-Infinity;
   let toastTimer,pendingJoin,joinTimer,uiTimer=0;
+  let unread=0,chatPending=false;
+  function setChat(open,focus=true){
+    $('chat-panel').hidden=!open;$('chat-toggle').setAttribute('aria-expanded',String(open));
+    document.body.classList.toggle('chat-open',open);
+    if(open){document.body.classList.remove('settings-open');$('settings-toggle').setAttribute('aria-expanded','false');}
+    else if(document.activeElement===$('chat-input'))$('chat-input').blur();
+    if(open){clearMovement();target=null;unread=0;$('chat-unread').hidden=true;$('chat-messages').scrollTop=$('chat-messages').scrollHeight;if(focus)$('chat-input').focus();}
+    else if(focus&&active)$('canvas').focus({preventScroll:true});
+  }
+  function resetChat(){setChat(false,false);unread=0;chatPending=false;$('chat-unread').hidden=true;$('chat-messages').replaceChildren();$('chat-input').value='';$('chat-error').textContent='';$('chat-send').disabled=false;}
+  function appendChat(message,history=false){
+    $('chat-empty')?.remove();const log=$('chat-messages'),nearBottom=log.scrollHeight-log.scrollTop-log.clientHeight<48;
+    const row=document.createElement('div'),name=document.createElement('strong'),text=document.createElement('p');row.className='chat-message';if(message.playerId===myId)row.classList.add('mine');name.textContent=message.name+(message.playerId===myId?' (bạn)':'');text.textContent=message.text;row.append(name,text);log.append(row);while(log.children.length>50)log.firstElementChild.remove();
+    if(nearBottom||history||message.playerId===myId)log.scrollTop=log.scrollHeight;
+    if(!history&&message.playerId===myId){chatPending=false;$('chat-send').disabled=false;$('chat-input').value='';$('chat-error').textContent='';}
+    if(!history&&$('chat-panel').hidden&&message.playerId!==myId){unread++;$('chat-unread').textContent=unread>99?'99+':String(unread);$('chat-unread').hidden=false;}
+  }
+  $('chat-toggle').onclick=()=>setChat($('chat-panel').hidden);$('chat-close').onclick=()=>setChat(false);
+  $('chat-input').addEventListener('focus',()=>{clearMovement();target=null;});
+  $('chat-panel').addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();setChat(false);}});
+  $('chat-form').onsubmit=e=>{e.preventDefault();const text=$('chat-input').value.trim();if(!active||!socket?.connected||chatPending||!text)return;chatPending=true;$('chat-send').disabled=true;$('chat-error').textContent='';socket.emit('chat-send',text);};
+  function fitPhoneViewport(){
+    const viewport=window.visualViewport;
+    document.documentElement.classList.toggle('keyboard-visible',!!viewport&&window.innerHeight-viewport.height>120);
+    document.documentElement.style.setProperty('--visual-height',`${viewport?.height||window.innerHeight}px`);
+    document.documentElement.style.setProperty('--visual-offset-top',`${viewport?.offsetTop||0}px`);
+    document.documentElement.style.setProperty('--keyboard-inset',`${viewport?Math.max(0,window.innerHeight-viewport.height-viewport.offsetTop):0}px`);
+  }
+  fitPhoneViewport();window.addEventListener('resize',fitPhoneViewport);
+  window.visualViewport?.addEventListener('resize',fitPhoneViewport);
+  window.visualViewport?.addEventListener('scroll',fitPhoneViewport);
   const players=new Map(),items=new Map(),keys=new Set(),leafPatches=new Map();
   const {nearestRack,nearestLeaves,SWEEP_DURATION,HIT_DURATION,HIT_COOLDOWN}=window.TempleSweeping;
   const joystickInput={x:0,y:0,pointer:null,bounds:null};
@@ -16,8 +47,21 @@ import { easeVelocity } from './locomotion.mjs';
   const gameCanvas=$('canvas'),previewHost=$('preview').parentElement,gameHost=gameCanvas.parentElement;
   $('preview').replaceWith(gameCanvas);
   let view;
-  try{view=new TempleView(gameCanvas);}catch(error){$('join-error').textContent='Thiết bị chưa mở được đồ họa 3D. Hãy bật tăng tốc đồ họa hoặc thử Chrome / Edge mới nhé.';$('join-button').disabled=true;console.error(error);}
+  try{view=new TempleView(gameCanvas);}catch(error){$('creator-error').textContent='Thiết bị chưa mở được đồ họa 3D. Hãy bật tăng tốc đồ họa hoặc thử Chrome / Edge mới nhé.';$('next-button').disabled=true;$('join-button').disabled=true;console.error(error);}
   const customizer=new Customizer(view);
+  function validCharacterCode(){
+    const code=window.AvatarConfig.characterCode($('character-code').value),valid=!code||code==='tom';
+    $('character-code').setAttribute('aria-invalid',String(!valid));
+    $('creator-error').textContent=valid?'':'Mã nhân vật chưa đúng. Kiểm tra lại hoặc để trống nhé.';
+    if(!valid)$('character-code').focus();
+    return valid;
+  }
+  $('next-button').onclick=()=>{if(view?.ready&&validCharacterCode())$('entry-dialog').showModal();};
+  $('character-code').addEventListener('input',()=>{$('character-code').removeAttribute('aria-invalid');$('creator-error').textContent='';});
+  $('character-code').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();$('next-button').click();}});
+  $('entry-back').onclick=$('edit-character').onclick=()=>$('entry-dialog').close();
+  $('entry-dialog').addEventListener('cancel',event=>{if(joining)event.preventDefault();});
+  $('entry-dialog').addEventListener('close',()=>{if(!active)$('next-button').focus({preventScroll:true});});
   sound.onBird=call=>view?.garden?.sing(call.id,performance.now()/1000+call.delay,call.duration);
   gameCanvas.addEventListener('render-error',()=>toast('Đồ họa 3D bị gián đoạn. Hãy tải lại trang để vào lại nhé.'));
   gameCanvas.addEventListener('avatar-step',event=>sound.footstep(event.detail.surface));
@@ -27,7 +71,7 @@ import { easeVelocity } from './locomotion.mjs';
     try{
       if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(link);
       else{const input=document.createElement('textarea');input.value=link;input.style.cssText='position:fixed;top:0;left:-9999px';document.body.append(input);input.select();const copied=document.execCommand('copy');input.remove();if(!copied)throw new Error('copy');}
-      toast(['localhost','127.0.0.1','[::1]'].includes(location.hostname)?'Đã sao chép. Để mời bạn, hãy mở bằng IP cùng Wi-Fi hoặc link website công khai.':'Đã sao chép link · Mời bạn vào cùng sân, tối đa 5 người.');
+      toast(['localhost','127.0.0.1','[::1]'].includes(location.hostname)?'Đã sao chép. Để mời bạn, hãy mở bằng IP cùng Wi-Fi hoặc link website công khai.':'Đã sao chép link · Mời bạn vào cùng sân, tối đa 6 người.');
     }catch{toast(`Link mời bạn: ${link}`);}
   };
   function soundUI(){
@@ -40,16 +84,19 @@ import { easeVelocity } from './locomotion.mjs';
   function presence(n){$('presence-text').textContent=n?`${n} người đang trong sân`:'Sân chùa đang mở';}
   async function status(){try{const res=await fetch('/api/status');if(!res.ok)return;const data=await res.json();presence(data.online);$('password-wrap').hidden=!data.passwordRequired;}catch{}}
   status();const statusTimer=setInterval(()=>{if(!active)status();},15000);
-  const errorMessages={'full':'Sân chùa đã đủ 5 người. Bạn ghé lại sau một chút nhé.','bad-password':'Mật khẩu chưa đúng. Bạn thử lại nhé.','bad-input':'Bạn nhập tên và chọn một nhân vật nhé.'};
-  function setJoining(value){joining=value;$('join-button').disabled=value;$('join-button').firstElementChild.textContent=value?'Đang mở cổng…':'Ghé vào chùa';if(!value)clearTimeout(joinTimer);}
+  const errorMessages={'full':'Sân chùa đã đủ 6 người. Bạn ghé lại sau một chút nhé.','bad-password':'Mật khẩu chưa đúng. Bạn thử lại nhé.','bad-input':'Bạn nhập tên và chọn một nhân vật nhé.'};
+  function setJoining(value){joining=value;$('join-button').disabled=value;$('entry-back').disabled=value;$('edit-character').disabled=value;$('join-button').firstElementChild.textContent=value?'Đang mở cổng…':'Ghé vào chùa';if(!value)clearTimeout(joinTimer);}
   function connect(){
     if(socket)return;
     socket=io({autoConnect:false,reconnection:true,reconnectionAttempts:5,timeout:8000});
     socket.on('connect',()=>{if(joining&&pendingJoin)socket.emit('join',pendingJoin);});
     socket.on('presence',p=>presence(p.online));
+    socket.on('chat-history',messages=>{resetChat();for(const message of messages)appendChat(message,true);if(!messages.length){const p=document.createElement('p');p.id='chat-empty';p.textContent='Gửi một lời chào đến mọi người nhé.';$('chat-messages').append(p);}});
+    socket.on('chat-message',message=>appendChat(message));
+    socket.on('chat-error',code=>{chatPending=false;$('chat-send').disabled=false;$('chat-error').textContent=code==='rate-limit'?'Bạn gửi hơi nhanh. Chờ một chút rồi gửi lại nhé.':'Tin nhắn cần có từ 1 đến 300 ký tự.';});
     socket.on('joined',data=>{
       myId=data.id;players.clear();items.clear();for(const p of data.players)players.set(p.id,{...p,tx:p.x,ty:p.y});for(const item of data.incense)items.set(item.id,{...item,end:performance.now()+item.ttl});
-      active=true;setJoining(false);target=null;clearMovement();lastPosition=null;localBowUntil=0;incensePending=false;sofaPending=false;lastHit=-Infinity;
+      active=true;setJoining(false);$('entry-dialog').close();target=null;clearMovement();lastPosition=null;localBowUntil=0;incensePending=false;sofaPending=false;lastHit=-Infinity;
       gameHost.prepend(gameCanvas);document.body.classList.add('playing');view.setActive(true);setCamera('overhead');
       leafPatches.clear();for(const patch of data.leaves||[])leafPatches.set(patch.id,{...patch,readyAt:performance.now()+patch.readyIn});
       view.yardCare.setPatches([...leafPatches.values()]);updateYardUI(players.get(myId),performance.now());
@@ -100,22 +147,24 @@ import { easeVelocity } from './locomotion.mjs';
     if(joining||!view?.ready)return;
     const name=$('name').value.trim();if(!name){$('name').focus();$('join-error').textContent='Bạn cho mình biết tên trước nhé.';return;}
     if(typeof io==='undefined'){$('join-error').textContent='Chưa tải được kết nối. Bạn tải lại trang nhé.';return;}
-    pendingJoin={name,character:customizer.gender==='female'?1:0,color:customizer.value.colors.shirt,avatar:customizer.value,password:$('password').value};setJoining(true);$('join-error').textContent='';
+    const characterCode=window.AvatarConfig.characterCode($('character-code').value);
+    if(characterCode&&characterCode!=='tom'){$('entry-dialog').close();validCharacterCode();return;}
+    pendingJoin={name,character:customizer.gender==='female'?1:0,color:customizer.value.colors.shirt,avatar:customizer.value,characterCode,password:$('password').value};setJoining(true);$('join-error').textContent='';
     sound.start(!muted).catch(()=>{});connect();
     if(socket.connected)socket.emit('join',pendingJoin);else socket.connect();
     joinTimer=setTimeout(()=>{if(!joining)return;setJoining(false);socket.disconnect();$('join-error').textContent='Kết nối hơi lâu. Bạn thử vào lại nhé.';if($('connection-dialog').open){$('connection-dialog').close();showHome();}},12000);
   }
   $('join-form').onsubmit=e=>{e.preventDefault();join();};
   function showHome(){sound.setInGame(false);active=false;myId=null;players.clear();items.clear();clearMovement();target=null;document.body.classList.remove('playing','people-open','settings-open');$('people-toggle').setAttribute('aria-expanded','false');$('settings-toggle').setAttribute('aria-expanded','false');previewHost.prepend(gameCanvas);view?.setActive(false);$('game').hidden=true;$('welcome').hidden=false;$('welcome-footer').hidden=false;$('connection-dialog').close();setJoining(false);if(socket)socket.disconnect();sound.setEnabled(false);status();}
-  $('leave').onclick=showHome;$('back-home').onclick=showHome;$('rejoin').onclick=()=>{if(joining)return;join();};
+  $('leave').onclick=()=>{resetChat();showHome();};$('back-home').onclick=()=>{resetChat();showHome();};$('rejoin').onclick=()=>{if(joining)return;join();};
   $('help').onclick=()=>{$('help-dialog').showModal();clearMovement();target=null;};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
   function setCamera(mode){view?.setMode(mode);for(const key of ['overhead','panorama','follow'])$('camera-'+key).setAttribute('aria-pressed',String(mode===key));}
   $('camera-overhead').onclick=()=>setCamera('overhead');$('camera-panorama').onclick=()=>setCamera('panorama');$('camera-follow').onclick=()=>setCamera('follow');$('camera-in').onclick=()=>view?.zoomBy(.85);$('camera-out').onclick=()=>view?.zoomBy(1.18);$('camera-reset').onclick=()=>view?.resetCamera();
   $('people-toggle').onclick=()=>{const open=document.body.classList.toggle('people-open');$('people-toggle').setAttribute('aria-expanded',String(open));};
-  $('settings-toggle').onclick=()=>{const open=document.body.classList.toggle('settings-open');$('settings-toggle').setAttribute('aria-expanded',String(open));};
-  function updateQualityUI(){const high=view?.quality==='high';$('quality-mode').setAttribute('aria-pressed',String(high));$('quality-mode').textContent=high?'Rất nét':'Đẹp & mượt';}
-  updateQualityUI();
-  $('quality-mode').onclick=()=>{if(!view)return;view.setQuality(view.quality==='high'?'balanced':'high');updateQualityUI();try{localStorage.setItem('temple-visual-quality',view.quality);}catch{}toast(view.quality==='high'?'Hình ảnh rất nét, đầy đủ chi tiết.':'Hình ảnh đẹp, ưu tiên chuyển động mượt.');};
+  $('settings-toggle').onclick=()=>{const open=!document.body.classList.contains('settings-open');if(open){setChat(false,false);clearMovement();target=null;}document.body.classList.toggle('settings-open',open);$('settings-toggle').setAttribute('aria-expanded',String(open));};
+  function updateTimeUI(){const watching=[...players.values()].some(p=>window.WATCH_SEATS.some(s=>s.id===p.sofaSeatId)),night=watching||view?.cycle.mode==='night';$('time-of-day').disabled=watching;$('time-of-day').setAttribute('aria-pressed',String(night));$('time-of-day').textContent=watching?'☾ Ngắm pháo hoa':night?'☾ Ban đêm':'☀ Ban ngày';document.body.classList.toggle('night-scene',night);}
+  updateTimeUI();
+  $('time-of-day').onclick=()=>{if(!view)return;view.setTimeOfDay(view.cycle.mode==='night'?'day':'night');updateTimeUI();try{localStorage.setItem('temple-time-of-day',view.cycle.mode);}catch{}};
   const stick=$('joystick');
   function moveStick(e){
     if(joystickInput.pointer!==e.pointerId)return;
@@ -127,7 +176,8 @@ import { easeVelocity } from './locomotion.mjs';
   stick.addEventListener('pointermove',moveStick);
   for(const type of ['pointerup','pointercancel','lostpointercapture'])stick.addEventListener(type,e=>{if(joystickInput.pointer===e.pointerId)clearMovement(type!=='pointerup');});
   function updatePeople(){
-    $('online-count').textContent=`${players.size}/5`;$('people-badge').textContent=`${players.size}/5`;$('incense-count').innerHTML=`${items.size} <small>/ 12 nén</small>`;presence(players.size);
+    updateTimeUI();
+    $('online-count').textContent=`${players.size}/6`;$('people-badge').textContent=`${players.size}/6`;$('incense-count').innerHTML=`${items.size} <small>/ 12 nén</small>`;presence(players.size);
     const list=$('players');list.replaceChildren();for(const p of players.values()){const li=document.createElement('li'),c=document.createElement('canvas'),info=document.createElement('div'),name=document.createElement('strong'),state=document.createElement('small');c.width=60;c.height=72;drawPortrait(c,window.AvatarConfig.normalize(p.avatar,p.character,p.color));info.className='player-info';name.textContent=p.name;state.textContent=p.action==='sit'?(p.sofaSeatId?'Đang ngồi sofa':'Đang ngồi thiền'):p.action==='bow'?(p.ritual?.kind==='incense'?'Đang thắp nhang':'Đang cúi lạy'):'Đang thong thả';info.append(name,state);li.append(c,info);if(p.id===myId){const you=document.createElement('span');you.className='you';you.textContent='bạn';li.append(you);}list.append(li);}
   }
   function availableSofaSeats(){return window.SOFA_SEATS.filter(s=>![...players.values()].some(p=>p.sofaSeatId===s.id));}
@@ -147,7 +197,7 @@ import { easeVelocity } from './locomotion.mjs';
     $('sweep-leaves').hidden=!canSweep&&!sweeping;$('sweep-leaves').disabled=!canSweep||busy;$('sweep-label').textContent=sweeping?'Đang quét…':'Quét lá';
     $('broom-hit').hidden=!me.hasBroom;$('broom-hit').disabled=!me.hasBroom||busy||now-lastHit<HIT_COOLDOWN;
     $('hit-label').textContent='Var nhau';
-    document.querySelector('.yard-tools').hidden=!rack&&!canSweep&&!sweeping&&!me.hasBroom;
+    document.querySelector('.yard-tools').hidden=!!me.sofaSeatId||!rack&&!canSweep&&!sweeping&&!me.hasBroom;
     $('broom-hint').textContent=sweeping?'Dọn sân thêm sạch':me.hasBroom?'G / Var nhau: vung chổi phía trước · Trúng người mới mất 1 phước':canSweep?'Chạm để quét · +1 phước lành':'Chạm để lấy chổi trên giá';
     if(me.hitStart&&now-me.hitStart*1000<HIT_DURATION)$('location-hint').textContent='Đang vung chổi về phía trước…';
     if(sweeping)$('location-hint').textContent='Đang quét lá…';
@@ -206,7 +256,7 @@ import { easeVelocity } from './locomotion.mjs';
   function walkTo(clientX,clientY){
     if(!active||performance.now()<localBowUntil)return;const hit=view.pick(clientX,clientY);if(!hit)return;
     let {x,y}=hit,sofaSeat=null;
-    if(hit.sofaSeatId){const requested=window.SOFA_SEATS.find(s=>s.id===hit.sofaSeatId);sofaSeat=availableSofaSeats().filter(s=>s.sofaId===requested.sofaId).sort((a,b)=>Math.abs(a.x-x)-Math.abs(b.x-x))[0];if(!sofaSeat){toast('Sofa này đã đủ chỗ. Bạn chọn ghế khác nhé.');return;}x=sofaSeat.approachX;y=sofaSeat.approachY;}
+    if(hit.sofaSeatId){const requested=window.SOFA_SEATS.find(s=>s.id===hit.sofaSeatId);sofaSeat=availableSofaSeats().filter(s=>s.sofaId===requested.sofaId).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0];if(!sofaSeat){toast('Ghế này đã đủ chỗ. Bạn chọn hàng ghế khác nhé.');return;}x=sofaSeat.approachX;y=sofaSeat.approachY;}
     const lotus=window.lotusAt(x,y);if(lotus){x=lotus.x;y=lotus.y;}
     if(Math.hypot(x-URN.x,y-URN.y)<38){x=URN.x;y=URN.y+53;}
     if(!validPosition(x,y)){toast('Đi trên sân và qua cầu để sang bờ suối nhé.');return;}
@@ -258,12 +308,14 @@ import { easeVelocity } from './locomotion.mjs';
           $('incense').title=near?'Thắp một nén hương (F)':'Lại gần lư hương trong chính điện';
           const moveHint=view.mobile?'Kéo cần để di chuyển · Vuốt để nhìn quanh':'Kéo để xoay góc nhìn · WASD để đi · Chạm vào sân để bước đi';
           $('location-hint').textContent=now<localBowUntil?(me.action==='bow'?(me.ritual?.kind==='incense'?'Đang dâng hương…':'Đang cúi lạy…'):me.action==='sit'?'Đang ngồi xuống…':'Đang đứng dậy…'):window.lotusAt(me.x,me.y)?(me.action==='sit'?'Thả lỏng trên lá sen · Lắng nghe mặt hồ':'Lá sen thiền · Bấm E hoặc Ngồi thiền'):near?(ownIncense>=3?'Bạn đã cắm 3 nén · Đợi hương tàn':items.size>=12?'Lư hương đã đầy':incensePending?'Đang chuẩn bị dâng hương…':'Có thể cắm nén tiếp theo · F / Thắp nhang'):moveHint;
-          $('sit-label').textContent=me.action==='sit'?'Đứng dậy':nearbySofaSeat(me)?'Ngồi sofa':'Ngồi thiền';$('sit').setAttribute('aria-pressed',String(me.action==='sit'));
+          const nearbySeat=nearbySofaSeat(me),watching=window.WATCH_SEATS.some(s=>s.id===me.sofaSeatId);
+          $('sit-label').textContent=me.action==='sit'?'Đứng dậy':nearbySeat?.watching?'Ngắm pháo hoa':nearbySeat?'Ngồi sofa':'Ngồi thiền';$('sit').setAttribute('aria-pressed',String(me.action==='sit'));
+          if(watching)$('location-hint').textContent=view.mobile?'Vuốt trái/phải để nhìn quanh · Đứng dậy để rời ghế':'Kéo chuột trái/phải để nhìn quanh · Đứng dậy để rời ghế';
           updateYardUI(me,now);
         }
       }
       view?.render(t,[...players.values()],[...items.values()],myId,target);
-    }else if(!$('welcome').hidden){view?.renderCreator(customizer.value);}
+    }else if(!$('welcome').hidden){view?.renderCreator(window.AvatarConfig.withCharacterCode(customizer.value,$('character-code').value));}
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);

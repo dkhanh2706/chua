@@ -35,3 +35,25 @@ test('patterned koi stay below the surface and within the pond throughout smooth
   for(const fish of pond.fish){const colors=fish.g.children[0].geometry.attributes.color;assert.ok(colors);assert.ok(new Set(Array.from(colors.array).map(n=>n.toFixed(2))).size>4);}
   for(let time=0;time<120;time+=.5){pond.update(time);for(const fish of pond.fish){assert.ok((fish.g.position.x/13.4)**2+(fish.g.position.z/8.6)**2<.65);assert.ok(fish.g.position.y+.085*fish.g.scale.y<.235);assert.ok(Number.isFinite(fish.tail.rotation.y));}}
 });
+
+test('river fish remain submerged, clear both banks and swim without jumps',async t=>{
+  const original=global.window;global.window=world;t.after(()=>{global.window=original;});
+  const {Group}=await import('three'),{RiverGarden,riverCenter}=await import('../public/river-garden.mjs');
+  const river=new RiverGarden(new Group(),{value:0});assert.equal(river.fish.length,16);
+  const previous=new Map();
+  for(let time=0;time<90;time+=.1){river.update(time);for(const f of river.fish){
+    const p=f.g.position;assert.ok(p.y+.05<.055&&p.y-.05>-.34);assert.ok(Math.abs(p.x-riverCenter(p.z))<2.7);assert.ok(p.z> -24&&p.z<44);
+    if(previous.has(f))assert.ok(p.distanceTo(previous.get(f))<.1);previous.set(f,p.clone());
+  }}
+});
+
+test('fitted courtyard paving reaches curved shores and the temple, with continuous grout under joints',async()=>{
+  const {Group,Raycaster,Vector3}=await import('three'),{buildCourtyardPaving}=await import('../public/courtyard-paving.mjs');
+  const group=new Group();buildCourtyardPaving(group);group.updateMatrixWorld(true);const ray=new Raycaster();
+  for(const [x,z] of [[19.2,-10.2],[-15.7,10.1],[-29.6,.9],[-49.8,17],[49,27],[19.2,-10],[-50,17],[6.9,7.4]]){
+    ray.set(new Vector3(x,2,z),new Vector3(0,-1,0));assert.ok(ray.intersectObjects(group.children).length,`finished paving at ${x},${z}`);
+  }
+  for(const [x,z] of [[-29.6,10.1],[0,-13],[world.riverX(505)/10-50,15.5]]){
+    ray.set(new Vector3(x,2,z),new Vector3(0,-1,0));assert.equal(ray.intersectObjects(group.children).length,0,'paving clears water and the hall');
+  }
+});

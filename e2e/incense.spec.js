@@ -6,7 +6,7 @@ for(const mobile of [false,true])test(`incense can follow the finished ritual im
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   const touch=selector=>mobile?page.locator(selector).tap():page.locator(selector).click();
   try{
-    await page.goto('/');await page.locator('#name').fill('Dang huong');await touch('#join-button');
+    await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill('Dang huong');await touch('#join-button');
     await page.locator('#canvas').focus();await page.keyboard.down('w');
     try{await expect(page.locator('#incense')).toBeEnabled({timeout:18000});}finally{await page.keyboard.up('w');}
     await touch('#incense');

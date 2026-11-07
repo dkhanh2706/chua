@@ -22,7 +22,7 @@ for (const mobile of [false, true])
       mobile ? page.locator(selector).tap() : page.locator(selector).click();
     try {
       await page.goto("/");
-      await page.locator("#name").fill("Ngoi sofa");
+      await page.locator('#next-button').click();await page.locator("#name").fill("Ngoi sofa");
       await touch("#join-button");
       await page.evaluate(async () => {
         const { TempleView } = await import("/scene3d.js");
@@ -50,7 +50,7 @@ for (const mobile of [false, true])
       } finally {
         await page.keyboard.up("w");
       }
-      await page.evaluate(() => window.sofaQA.view.setMode("follow"));
+      await page.evaluate(mobile => {window.sofaQA.view.setMode("follow");if(mobile)window.sofaQA.view.yaw=-.8;},mobile);
       await page.waitForTimeout(600);
       const point = await page.evaluate(async () => {
         const { Vector3 } = await import("three"),
@@ -67,6 +67,8 @@ for (const mobile of [false, true])
           y: r.top + ((1 - p.y) * r.height) / 2,
         };
       });
+      expect(point.x).toBeGreaterThan(0);expect(point.x).toBeLessThan(page.viewportSize().width);
+      expect(await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.id,point)).toBe('canvas');
       if (mobile) await page.touchscreen.tap(point.x, point.y);
       else await page.mouse.click(point.x, point.y);
       await expect
@@ -115,10 +117,10 @@ for (const mobile of [false, true])
         .poll(() => page.evaluate(() => window.sofaQA.me.sofaSeatId))
         .toBeTruthy();
       await page.waitForTimeout(650);
-      await page.evaluate(() => {
+      await page.evaluate((mobile) => {
         window.sofaQA.view.setMode("follow");
-        window.sofaQA.view.yaw = Math.PI;
-      });
+        window.sofaQA.view.yaw = Math.PI+(mobile?.8:0);
+      },mobile);
       await page.waitForTimeout(450);
       const floor = await page.evaluate(async () => {
         const { Vector3 } = await import("three"),
@@ -130,6 +132,8 @@ for (const mobile of [false, true])
           y: r.top + ((1 - p.y) * r.height) / 2,
         };
       });
+      expect(floor.x).toBeGreaterThan(0);expect(floor.x).toBeLessThan(page.viewportSize().width);
+      expect(await page.evaluate(p=>document.elementFromPoint(p.x,p.y)?.id,floor)).toBe('canvas');
       if (mobile) await page.touchscreen.tap(floor.x, floor.y);
       else await page.mouse.click(floor.x, floor.y);
       await expect

@@ -25,7 +25,7 @@ for (const mobile of [false, true])
           return start.apply(this, args);
         };
       });
-      await page.locator("#name").fill("Nghe nhac");
+      await page.locator('#next-button').click();await page.locator("#name").fill("Nghe nhac");
       await tap("#join-button");
       await expect
         .poll(() => page.evaluate(() => window.soundQA?.music?.playing))

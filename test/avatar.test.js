@@ -3,6 +3,35 @@ const assert=require('node:assert/strict');
 const config=require('../public/avatar-config');
 const modelModule=import('../public/avatar-model.mjs');
 
+test('Tom uses the shared animated rig for walking, meditation, bowing and sofa sitting',async()=>{
+  const {createAvatar,poseAvatar,disposeAvatar}=await modelModule;
+  const appearance=config.withCharacterCode(config.defaults(),' TOM '),m=createAvatar(appearance);
+  assert.equal(m.signature,JSON.stringify(appearance));assert.ok(m.tail);assert.equal(m.eyes.length,2);
+  for(const p of [{action:'stand',moving:true},{action:'sit'},{action:'bow',ritual:{kind:'incense',start:0}},{action:'sit',sofaSeatId:'sofa'}]){
+    for(let i=0;i<40;i++)poseAvatar(m,p,i*.04,.04);
+    assert.ok(Number.isFinite(m.postureOffset));m.root.updateMatrixWorld(true);m.root.traverse(o=>{for(const n of o.matrixWorld.elements)assert.ok(Number.isFinite(n));});
+  }
+  assert.equal(config.withCharacterCode(appearance,'').special,undefined);disposeAvatar(m);
+});
+
+test('bowing and incense keep both folded hands on their own side of the chest for every character',async()=>{
+  const {createAvatar,poseAvatar,disposeAvatar}=await modelModule;
+  const {Vector3}=await import('three');
+  for(const appearance of [config.defaults('male'),config.defaults('female'),config.withCharacterCode(config.defaults(),'tom')])for(const kind of ['bow','incense']){
+    const m=createAvatar(appearance);
+    for(let frame=0;frame<=90;frame++){
+      poseAvatar(m,{action:frame<90?'bow':'stand',ritual:{kind,start:0}},frame/60,1/60);m.root.updateMatrixWorld(true);
+      const hands=m.wrists.map(w=>m.body.worldToLocal(w.getWorldPosition(new Vector3())));
+      assert.ok(hands[0].x<-.07&&hands[1].x>.07,`${appearance.special||appearance.gender} ${kind}: hands crossed at ${frame}`);
+      if(m.motionOutput.prayer>.99){
+        assert.ok(hands.every(p=>p.z>.32&&p.y>.45),'folded hands stay in front of the chest');
+        assert.ok(hands[0].distanceTo(hands[1])<.23,'hands remain together during the ritual');
+      }
+    }
+    disposeAvatar(m);
+  }
+});
+
 test('appearance accepts free hex colors, validates every style, and removes untrusted fields',()=>{
   const a=config.normalize({gender:'female',shirt:'short',pants:'wide',shoes:'sandals',hair:'bald',necklace:true,hairAccessory:'bow',colors:{shirt:'#123AbC',hairAccessory:'#09f001',skin:'url(evil)'},injected:'ignore'});
   assert.equal(a.gender,'female');assert.equal(a.hair,'bald');assert.equal(a.necklace,true);assert.equal(a.colors.shirt,'#123abc');assert.equal(a.colors.hairAccessory,'#09f001');assert.equal(a.colors.skin,config.defaults().colors.skin);assert.equal(a.injected,undefined);

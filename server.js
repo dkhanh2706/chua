@@ -5,6 +5,7 @@ const { randomUUID } = require('node:crypto');
 const { Server } = require('socket.io');
 const { validPosition,canWalkBetween,groundHeight,SOFA_SEATS,SOFA_REACH, URN, WORLD } = require('./public/world');
 const AvatarConfig = require('./public/avatar-config');
+const {ROOM_CAPACITY}=require('./public/world');
 const {BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN,HIT_RANGE,HIT_DURATION,HIT_CONTACT,HIT_COOLDOWN}=require('./public/sweeping');
 
 function createTemple(options = {}) {
@@ -14,6 +15,7 @@ function createTemple(options = {}) {
   const players = new Map();
   const swingTimers=new Set();
   const incense = new Map();
+  const messages = [];
   const leafPatches=new Map(LEAF_PATCHES.map(p=>[p.id,{...p,availableAt:0}]));
   const password = options.password ?? process.env.ROOM_PASSWORD;
   const now = options.now || Date.now;
@@ -23,30 +25,46 @@ function createTemple(options = {}) {
   const publicIncense = i => ({ id: i.id, owner: i.owner, slot: i.slot, ttl: Math.max(0, i.expiresAt - now()) });
   const publicPatch=p=>({id:p.id,x:p.x,y:p.y,tree:p.tree,readyIn:Math.max(0,p.availableAt-now())});
   app.disable('x-powered-by');
-  app.get('/api/status', (_, res) => res.json({ online: players.size, capacity: 5, passwordRequired: !!password }));
+  app.get('/api/status', (_, res) => res.json({ online: players.size, capacity: ROOM_CAPACITY, passwordRequired: !!password }));
   app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three/build')));
   app.use('/picture', express.static(path.join(__dirname, 'picture'), { index: false, dotfiles: 'deny' }));
   app.use(express.static(path.join(__dirname, 'public')));
 
   io.on('connection', socket => {
     let lastMove = 0;
+    let lastChat = -Infinity;
     socket.on('join', input => {
       if (players.has(socket.id)) return;
       if (!input || typeof input !== 'object' || typeof input.name !== 'string' || !Number.isInteger(input.character) || input.character < 0 || input.character > 1) return socket.emit('join-error', 'bad-input');
       const name = Array.from(input.name.normalize('NFC').replace(/[\p{C}<>]/gu, '').replace(/\s+/g, ' ').trim()).slice(0, 14).join('');
       if (!name) return socket.emit('join-error', 'bad-input');
       if (password && input.password !== password) return socket.emit('join-error', 'bad-password');
-      if (players.size >= 5) return socket.emit('join-error', 'full');
+      if (players.size >= ROOM_CAPACITY) return socket.emit('join-error', 'full');
       const occupied = new Set([...players.values()].map(p => p.spawn));
-      const spawn = [0, 1, 2, 3, 4].find(n => !occupied.has(n));
-      const avatar = AvatarConfig.normalize(input.avatar, input.character, input.color);
+      const spawn = Array.from({length:ROOM_CAPACITY},(_,i)=>i).find(n => !occupied.has(n));
+      const code=AvatarConfig.characterCode(input.characterCode);
+      if(code && code!=='tom')return socket.emit('join-error','bad-character-code');
+      const avatar = AvatarConfig.withCharacterCode(AvatarConfig.normalize(input.avatar, input.character, input.color),code);
       const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand',sofaSeatId:null, bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0,lastHit:-Infinity };
       players.set(socket.id, p);
       socket.join('temple');
       socket.emit('joined', { id: p.id, players: [...players.values()].map(publicPlayer), incense: [...incense.values()].map(publicIncense),leaves:[...leafPatches.values()].map(publicPatch) });
       socket.to('temple').emit('player-joined', publicPlayer(p));
-      io.emit('presence', { online: players.size, capacity: 5 });
+      socket.emit('chat-history',messages);
+      io.emit('presence', { online: players.size, capacity: ROOM_CAPACITY });
       dirty = true;
+    });
+    socket.on('chat-send', input => {
+      const p=players.get(socket.id);
+      if(!p||typeof input!=='string')return;
+      const text=input.normalize('NFC').replace(/[\p{C}]/gu,' ').replace(/\s+/g,' ').trim();
+      if(!text||Array.from(text).length>300)return socket.emit('chat-error','invalid');
+      const time=now();
+      if(time-lastChat<800)return socket.emit('chat-error','rate-limit');
+      lastChat=time;
+      const message={id:randomUUID(),playerId:p.id,name:p.name,text,time};
+      messages.push(message);if(messages.length>50)messages.shift();
+      io.to('temple').emit('chat-message',message);
     });
     socket.on('move', input => {
       const p = players.get(socket.id);
@@ -148,8 +166,8 @@ function createTemple(options = {}) {
     socket.on('disconnect', () => {
       if (!players.delete(socket.id)) return;
       io.to('temple').emit('player-left', { id: socket.id });
-      if (!players.size){incense.clear();for(const p of leafPatches.values())p.availableAt=0;}
-      io.emit('presence', { online: players.size, capacity: 5 });
+      if (!players.size){incense.clear();messages.length=0;for(const p of leafPatches.values())p.availableAt=0;}
+      io.emit('presence', { online: players.size, capacity: ROOM_CAPACITY });
       dirty = true;
     });
   });

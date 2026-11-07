@@ -4,7 +4,7 @@ for(const mobile of [false,true])test(`three circular roof tiers and a symmetric
   const context=await browser.newContext({viewport:mobile?{width:390,height:844}:{width:1440,height:1000},isMobile:mobile,hasTouch:mobile}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   try{
-    await page.goto('/');await page.locator('#name').fill('Chua tron');await page.locator('#join-button').click();
+    await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill('Chua tron');await page.locator('#join-button').click();
     const state=await page.evaluate(async mobile=>{
       const{TempleView}=await import('/scene3d.js');return new Promise(resolve=>{const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){render.apply(this,args);TempleView.prototype.render=render;
         const v=this,draw=v.renderer.render.bind(v.renderer),tiers=v.roofs.filter(o=>o.name.startsWith('circular-roof-tier'));

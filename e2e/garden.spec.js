@@ -5,7 +5,7 @@ test('square courtyard and continuous mountain water render without graphics err
   const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   try{
-    await page.goto('/');await page.locator('#name').fill('Son Thuy');await page.locator('#join-button').click();await inspectGarden(page);
+    await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill('Son Thuy');await page.locator('#join-button').click();await inspectGarden(page);
     const geometry=await page.evaluate(async()=>{
       const {mountainHeight}=await import('/landscape.mjs'),landscape=window.gardenQA.landscape;
       const positions=landscape.fall.geometry.attributes.position;
@@ -35,7 +35,7 @@ test('detailed garden renders veined leaves, wind, falling leaves and perched bi
   const context=await browser.newContext({viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   try{
-    await page.goto('/');await page.locator('#name').fill('Ngắm cây');await page.locator('#join-button').click();await inspectGarden(page);
+    await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill('Ngắm cây');await page.locator('#join-button').click();await inspectGarden(page);
     await page.locator('#camera-panorama').click();await page.waitForTimeout(900);await page.screenshot({path:'test-results/garden-overview.png'});
     const before=await page.evaluate(()=>({time:window.gardenQA.garden.wind.value,fall:Array.from(window.gardenQA.garden.fallBatches[0].mesh.instanceMatrix.array)}));await page.waitForTimeout(250);
     const after=await page.evaluate(()=>({time:window.gardenQA.garden.wind.value,fall:Array.from(window.gardenQA.garden.fallBatches[0].mesh.instanceMatrix.array),trees:window.gardenQA.garden.trees.length,birds:window.gardenQA.garden.birds.length}));expect(after.time).toBeGreaterThan(before.time);expect(after.fall).not.toEqual(before.fall);expect(after.trees).toBe(21);expect(after.birds).toBe(4);
@@ -46,7 +46,7 @@ test('detailed garden renders veined leaves, wind, falling leaves and perched bi
 test('mobile quality keeps tree detail, reduces particle counts, and bird audio obeys mute and cleanup',async({browser})=>{
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true}),page=await context.newPage();
   try{
-    await page.goto('/');await page.locator('#name').fill('Nghe chim');await page.locator('#join-button').tap();await inspectGarden(page);
+    await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill('Nghe chim');await page.locator('#join-button').tap();await inspectGarden(page);
     const low=await page.evaluate(()=>{const g=window.gardenQA.garden;return{leaves:g.trees.reduce((n,t)=>n+t.foliage.count,0),fall:g.fallBatches.reduce((n,b)=>n+b.mesh.count,0)};});expect(low.leaves).toBe(15120);expect(low.fall).toBe(30);
     await expect(page.locator('#quality-mode')).not.toBeVisible();await page.evaluate(()=>window.gardenQA.setQuality('high'));expect(await page.evaluate(()=>window.gardenQA.garden.fallBatches.reduce((n,b)=>n+b.mesh.count,0))).toBe(72);await page.evaluate(()=>window.gardenQA.setQuality('balanced'));
     const call=await page.evaluate(async()=>{const s=new TempleSound();await s.start(true);s.setGardenSources(window.gardenQA.garden.audioSources);s.nextBird=Infinity;s.update(performance.now()/1000,500,605,0);const calls=[];s.onBird=c=>calls.push(c);s.bird(s.sources[0]);window.birdAudioQA={s,calls};return{...calls[0],voices:s.voices.size};});

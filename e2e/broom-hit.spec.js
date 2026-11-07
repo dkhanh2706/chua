@@ -21,7 +21,7 @@ for(const mobile of [false,true])test(`a held broom always offers a forward swin
   try{
     for(const name of ['An','Binh']){
       const page=await context.newPage();pages.push(page);page.on('pageerror',e=>errors.push(e.message));
-      await page.goto('/');await page.locator('#name').fill(name);await touch(page,'#join-button');await expect(page.locator('#game')).toBeVisible();
+      await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill(name);await touch(page,'#join-button');await expect(page.locator('#game')).toBeVisible();
     }
     const [a,b]=pages;await expect(a.locator('#players li')).toHaveCount(2);await expect(b.locator('#players li')).toHaveCount(2);
     await approachRack(a);await expect(a.locator('#broom-hit')).toBeEnabled();
@@ -64,7 +64,7 @@ for(const mobile of [false,true])test(`a held broom always offers a forward swin
     await a.screenshot({path:`test-results/broom-hit-${mobile?'mobile':'desktop'}.png`});
     await b.bringToFront();await expect(b.locator('#blessing-score')).toHaveText('0');await expect(b.locator('#broom-hit')).not.toBeVisible();
     await pageHook(b);expect(await b.evaluate(()=>window.hitQA.other.blessings)).toBe(-1);
-    const c=await context.newPage();pages.push(c);await c.goto('/');await c.locator('#name').fill('Late');await touch(c,'#join-button');await pageHook(c);
+    const c=await context.newPage();pages.push(c);await c.goto('/');await c.locator('#next-button').click();await c.locator('#name').fill('Late');await touch(c,'#join-button');await pageHook(c);
     expect(await c.evaluate(()=>window.hitQA.players.filter(p=>p.name!=='Late').map(p=>p.blessings))).toEqual([-1,0]);
     expect(errors).toEqual([]);
   }finally{await context.close();}

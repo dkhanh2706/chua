@@ -16,12 +16,13 @@ export class Customizer{
     canvas.addEventListener('pointerdown',e=>{if(document.body.classList.contains('playing'))return;pointer=e.pointerId;lastX=e.clientX;canvas.setPointerCapture(pointer);});
     canvas.addEventListener('pointermove',e=>{if(pointer!==e.pointerId||document.body.classList.contains('playing'))return;this.rotate((this.degrees+(e.clientX-lastX)*.7+360)%360);lastX=e.clientX;});
     const stop=e=>{if(pointer===e.pointerId)pointer=null;};canvas.addEventListener('pointerup',stop);canvas.addEventListener('pointercancel',stop);canvas.addEventListener('lostpointercapture',stop);
+    $('character-code').addEventListener('input',()=>this.commit());
     this.refreshGender();this.renderPanel();this.commit();
   }
   get value(){return this.drafts[this.gender];}
   rotate(degrees){this.degrees=degrees;this.view?.studio.rotate(degrees*Math.PI/180);$('avatar-rotation').value=Math.round(degrees);$('rotation-value').textContent=Math.round(degrees)+'°';}
   refreshGender(){document.querySelectorAll('[data-gender]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.gender===this.gender)));}
-  commit(){this.drafts[this.gender]=normalize(this.value);this.view?.studio.setAppearance(this.value);try{localStorage.setItem('temple-avatars',JSON.stringify({...this.drafts,selected:this.gender}));}catch{}}
+  commit(){this.drafts[this.gender]=normalize(this.value);const code=window.AvatarConfig.characterCode($('character-code').value);this.view?.studio.setAppearance(window.AvatarConfig.withCharacterCode(this.value,code));$('character-code-hint').textContent=code==='tom'?'Đã chọn nhân vật đặc biệt.':code?'Chưa có nhân vật với mã này.':'Để trống để dùng nhân vật đã chọn.';try{localStorage.setItem('temple-avatars',JSON.stringify({...this.drafts,selected:this.gender}));}catch{}}
   styleField(part,label){
     const field=document.createElement('label');field.className='style-field';const text=document.createElement('span');text.textContent=label;const select=document.createElement('select');select.id='style-'+part;select.setAttribute('aria-label',label);
     for(const value of styles[part]){const option=document.createElement('option');option.value=value;option.textContent=labels[part][value];select.append(option);}select.value=this.value[part];select.onchange=()=>{this.value[part]=select.value;this.commit();if(part==='hair'||part==='shoes')this.renderPanel();};field.append(text,select);$('custom-panel').append(field);

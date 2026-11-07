@@ -74,17 +74,58 @@ test('free broom swings only penalise a front contact and let other players dodg
   const unjoined=await f.client();unjoined.emit('broom-hit',{heading:Math.PI/2});await new Promise(resolve=>setTimeout(resolve,40));assert.equal(p.blessings,-2);
 });
 
+test('Tom code is authoritative and preserves normal player actions', async t => {
+  const f=await fixture(t),a=await f.client(),b=await f.client();
+  const joined=await f.join(a,{characterCode:' TOM '});assert.equal(joined.players[0].avatar.special,'tom');
+  const other=await f.join(b,{avatar:{special:'tom'}});assert.equal(other.players.find(p=>p.id===a.id).avatar.special,'tom');assert.equal(other.players.find(p=>p.id===b.id).avatar.special,undefined);
+  a.emit('action','sit');await new Promise(resolve=>setTimeout(resolve,70));assert.equal(f.players.get(a.id).action,'sit');
+  const c=await f.client(),error=event(c,'join-error');c.emit('join',{name:'An',character:0,characterCode:'unknown'});assert.equal(await error,'bad-character-code');
+});
+
+test('chat is shared only with joined players, validates text, limits spam and resets when empty',async t=>{
+  let clock=10000;const f=await fixture(t,{now:()=>clock}),a=await f.client(),b=await f.client(),visitor=await f.client();await f.join(a);await f.join(b);
+  let leaked=false;visitor.on('chat-message',()=>{leaked=true;});visitor.emit('chat-send','outside');
+  const sent=event(a,'chat-message'),received=event(b,'chat-message');a.emit('chat-send','  Xin chào <b>mọi người</b>  ');const message=await sent;assert.deepEqual(await received,message);assert.equal(message.text,'Xin chào <b>mọi người</b>');assert.equal(message.playerId,a.id);assert.equal(message.name,'An');
+  let error=event(a,'chat-error');a.emit('chat-send','spam');assert.equal(await error,'rate-limit');
+  for(const text of ['   ','x'.repeat(301)]){error=event(a,'chat-error');a.emit('chat-send',text);assert.equal(await error,'invalid');}
+  for(let i=0;i<52;i++){clock+=1000;const next=event(a,'chat-message');a.emit('chat-send',String(i));await next;}
+  const history=event(visitor,'chat-history');await f.join(visitor);const messages=await history;assert.equal(messages.length,50);assert.equal(messages[0].text,'2');assert.equal(leaked,false);
+  a.disconnect();b.disconnect();visitor.disconnect();await new Promise(resolve=>setTimeout(resolve,70));
+  const c=await f.client(),empty=event(c,'chat-history');await f.join(c);assert.deepEqual(await empty,[]);
+});
+
+test('six outdoor seats reserve independently, reject distant or occupied requests and release on departure',async t=>{
+  const {WATCH_SEATS,WATCH_BENCHES}=require('../public/world');
+  assert.equal(WATCH_BENCHES.length,2);assert.equal(WATCH_SEATS.length,6);
+  for(const seat of WATCH_SEATS){assert.ok(validPosition(seat.approachX,seat.approachY));assert.equal(validPosition(seat.x,seat.y),false);assert.equal(seat.heading,0);assert.ok(seat.approachY>seat.y);}
+  let clock=10000;const f=await fixture(t,{now:()=>clock}),clients=[];
+  for(let i=0;i<6;i++){
+    const s=await f.client();clients.push(s);await f.join(s);
+    const seat=WATCH_SEATS[i],error=event(s,'sofa-error');s.emit('sit-sofa',{seatId:seat.id});assert.equal(await error,'far');
+    Object.assign(f.players.get(s.id),{x:seat.approachX,y:seat.approachY});
+    const seated=event(s,'sofa-changed');s.emit('sit-sofa',{seatId:seat.id});assert.equal((await seated).sofaSeatId,seat.id);
+  }
+  assert.equal(new Set([...f.players.values()].map(p=>p.sofaSeatId)).size,6);
+  clock+=600;const first=clients[0],seat=WATCH_SEATS[0],standing=event(first,'sofa-changed');first.emit('action','stand');await standing;
+  Object.assign(f.players.get(first.id),{x:WATCH_SEATS[1].approachX,y:WATCH_SEATS[1].approachY});clock+=600;
+  const occupied=event(first,'sofa-error');first.emit('sit-sofa',{seatId:WATCH_SEATS[1].id});assert.equal(await occupied,'occupied');
+  Object.assign(f.players.get(first.id),{x:seat.approachX,y:seat.approachY});const reseated=event(first,'sofa-changed');first.emit('sit-sofa',{seatId:seat.id});await reseated;
+  const departed=event(clients[1],'player-left');first.disconnect();await departed;
+  const replacement=await f.client(),joined=await f.join(replacement);assert.equal(joined.players.filter(p=>p.sofaSeatId).length,5);
+  Object.assign(f.players.get(replacement.id),{x:seat.approachX,y:seat.approachY});const available=event(replacement,'sofa-changed');replacement.emit('sit-sofa',{seatId:seat.id});assert.equal((await available).sofaSeatId,seat.id);
+});
+
 test('serves application and exposes the configured capacity', async t => {
   const f = await fixture(t);
   const response = await fetch(f.url); assert.equal(response.status, 200); assert.match(await response.text(), /Chùa Online/);
-  assert.deepEqual(await (await fetch(`${f.url}/api/status`)).json(), { online: 0, capacity: 5, passwordRequired: false });
+  assert.deepEqual(await (await fetch(`${f.url}/api/status`)).json(), { online: 0, capacity: 6, passwordRequired: false });
 });
-test('five players share one courtyard; sixth is rejected; departure opens a place', async t => {
+test('six players share one courtyard; seventh is rejected; departure opens a place', async t => {
   const f = await fixture(t);const clients = [];
-  for (let i = 0; i < 5; i++) { const s = await f.client(); clients.push(s); const result = await f.join(s, { name: `Bạn ${i}` }); assert.equal(result.players.length, i + 1); }
-  const sixth = await f.client();const full = event(sixth, 'join-error');sixth.emit('join', { name: 'Bạn 6', character: 1 });assert.equal(await full, 'full');
+  for (let i = 0; i < 6; i++) { const s = await f.client(); clients.push(s); const result = await f.join(s, { name: `Bạn ${i}` }); assert.equal(result.players.length, i + 1); }
+  const sixth = await f.client();const full = event(sixth, 'join-error');sixth.emit('join', { name: 'Bạn 7', character: 1 });assert.equal(await full, 'full');
   const left = event(clients[0], 'player-left');const id = clients[4].id;clients[4].disconnect();assert.deepEqual(await left, { id });
-  assert.equal((await f.join(sixth)).players.length, 5);
+  assert.equal((await f.join(sixth)).players.length, 6);
 });
 test('input validation, Unicode name limit, optional password, and unjoined events', async t => {
   const f = await fixture(t, { password: 'lotus' });const s = await f.client();

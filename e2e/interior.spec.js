@@ -6,7 +6,7 @@ for(const mobile of [false,true])test(`warm temple interior, fans and indoor inc
   await context.addInitScript(()=>{for(const i of [0,1])localStorage.setItem(`temple-statue-portrait-${i}`,'old-browser-upload');});
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   try{
-    await page.goto('/');await page.locator('#name').fill('Vieng chua');await page.locator('#join-button').click();
+    await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill('Vieng chua');await page.locator('#join-button').click();
     await page.evaluate(async()=>{const {TempleView}=await import('/scene3d.js');await new Promise(resolve=>{const original=TempleView.prototype.render;TempleView.prototype.render=function(...args){
       original.apply(this,args);window.interiorQA=this;const me=args[1].find(p=>p.id===args[3]);
       if(me&&Math.abs(me.y-HALL_ENTRY.y)<45){this.entranceAngles??=[];this.entranceAngles.push(Math.atan2(this.camera.position.x-this.look.x,this.camera.position.z-this.look.z));}

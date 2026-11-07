@@ -1,8 +1,9 @@
 import * as THREE from 'three';
-import {makeTreeLayout,seededRandom} from './garden-layout.mjs';
+import {seededRandom} from './garden-layout.mjs';
 import {RiverGarden,riverCenter} from './river-garden.mjs';
 
 import {cascadeCenter,cascadeHeight,cascadeHalfWidth,rockyHeight} from './waterfall-layout.mjs';
+import {buildCourtyardPaving} from './courtyard-paving.mjs';
 
 export const mountainHeight=rockyHeight;
 
@@ -16,26 +17,12 @@ function surfaceGeometry(rows,columns,point){
 }
 
 export class GardenLandscape{
-  constructor(parent){
+  constructor(parent,night={value:0}){
     this.root=new THREE.Group();this.root.name='garden-landscape';parent.add(this.root);
-    this.time={value:0};this.buildPaving();this.buildMountain();this.buildWater();
+    this.time={value:0};this.night=night;this.buildPaving();this.buildMountain();this.buildWater();
   }
   buildPaving(){
-    const trees=makeTreeLayout(),tiles=[],random=seededRandom(763),dummy=new THREE.Object3D();
-    for(let z=-21;z<=29;z+=2)for(let x=-45;x<=45;x+=2){
-      const hall=window.HALL,centerZ=(hall.y-350)/10;
-      if(Math.hypot(x,z-centerZ)<hall.radius/10+1.2)continue;
-      if(Math.abs(x)<8.3&&z>centerZ&&z<(window.HALL_ENTRY.y-350)/10+4.6)continue;
-      if(((x+29.6)/15)**2+((z-10.1)/10.2)**2<1)continue;
-      if(Math.abs(x-riverCenter(z))<5.2)continue;
-      if(trees.some(t=>Math.hypot(x-t.x,z-t.z)<2.8))continue;
-      tiles.push([x,z]);
-    }
-    const geo=new THREE.BoxGeometry(1.94,.12,1.94);
-    const material=new THREE.MeshStandardMaterial({color:'#d2c8ae',roughness:.96});
-    const paving=new THREE.InstancedMesh(geo,material,tiles.length);paving.name='even-square-paving';
-    tiles.forEach(([x,z],i)=>{dummy.position.set(x,-.045,z);dummy.updateMatrix();paving.setMatrixAt(i,dummy.matrix);const shade=.94+random()*.1;paving.setColorAt(i,new THREE.Color().setRGB(shade,shade*.98,shade*.93));});
-    paving.receiveShadow=true;paving.computeBoundingSphere();this.root.add(paving);this.paving=paving;
+    this.paving=buildCourtyardPaving(this.root);
   }
   buildMountain(){
     const geometry=surfaceGeometry(140,100,(v,u)=>{const x=24+u*28,z=-65+v*40;return[x,mountainHeight(x,z),z];});
@@ -96,26 +83,26 @@ export class GardenLandscape{
     tufts.name='cliff-ferns-and-grasses';tufts.computeBoundingSphere();this.root.add(tufts);
   }
   waterMaterial(){
-    return new THREE.ShaderMaterial({uniforms:{uTime:this.time},side:THREE.DoubleSide,
+    return new THREE.ShaderMaterial({uniforms:{uTime:this.time,uNight:this.night},side:THREE.DoubleSide,
       vertexShader:`attribute float aCascade;varying vec2 vUv;varying vec3 vWorld;varying float vCascade;
         void main(){vUv=uv;vCascade=aCascade;vWorld=(modelMatrix*vec4(position,1.0)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.0);}`,
-      fragmentShader:`uniform float uTime;varying vec2 vUv;varying vec3 vWorld;varying float vCascade;
+      fragmentShader:`uniform float uTime;uniform float uNight;varying vec2 vUv;varying vec3 vWorld;varying float vCascade;
         float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
         void main(){
           float depth=pow(max(0.0,sin(vUv.x*3.14159)),.65);
           vec2 flow=vec2(vUv.x*9.0,vWorld.z*.75-uTime*(.65+vCascade*1.7));
           float n=noise(flow+noise(flow*.55));
-          float threads=pow(noise(vec2(vUv.x*23.0,(vWorld.y+vWorld.z*.35)*2.5-uTime*3.8)),2.0);
+          float threads=pow(noise(vec2(vUv.x*23.0,(-vWorld.y+vWorld.z*.35)*2.5-uTime*3.8)),2.0);
           float ripples=sin(vWorld.z*5.6-uTime*3.0+sin(vWorld.x*2.4+uTime*.3)*1.3);
           float impact=exp(-pow((vWorld.z+32.6)/1.0,2.0))+exp(-pow((vWorld.z+44.2)/.8,2.0))+exp(-pow((vWorld.z+52.2)/.8,2.0));
           float shore=(1.0-smoothstep(0.0,.08,min(vUv.x,1.0-vUv.x)))*(.10+.13*n);
           float foam=clamp(vCascade*(.36+threads*.65)+impact*(.22+.5*n)+shore,0.0,.94);
-          vec3 water=mix(vec3(.36,.55,.40),vec3(.12,.36,.34),depth);
+          vec3 water=mix(vec3(.15,.59,.69),vec3(.025,.29,.46),depth);
           water+=vec3(.035,.055,.045)*(n-.5);
           float glimmer=pow(max(0.0,ripples),18.0)*smoothstep(.52,.85,n)*.16;
           water+=vec3(.68,.81,.72)*glimmer;
-          gl_FragColor=vec4(mix(water,vec3(.88,.96,.92),foam),1.0);
+          gl_FragColor=vec4(mix(water,vec3(.83,.96,1.),foam)*mix(vec3(1.),vec3(.32,.46,.66),uNight),1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
         }`});
@@ -130,7 +117,7 @@ export class GardenLandscape{
     for(let i=0;i<pos.count;i++){const z=pos.getZ(i);slopes.push(Math.min(1,Math.abs(cascadeHeight(z+.05)-cascadeHeight(z-.05))/.1));}
     fallGeometry.setAttribute('aCascade',new THREE.Float32BufferAttribute(slopes,1));
     this.fall=new THREE.Mesh(fallGeometry,this.waterMaterial());this.fall.name='summit-to-river-waterfall';this.root.add(this.fall);
-    this.riverGarden=new RiverGarden(this.root,this.time);
+    this.riverGarden=new RiverGarden(this.root,this.time,this.night);
     this.ripples=[];
     for(let i=0;i<5;i++){
       const ring=new THREE.Mesh(new THREE.RingGeometry(.88,1,48),new THREE.MeshBasicMaterial({color:'#d6ece2',transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false}));

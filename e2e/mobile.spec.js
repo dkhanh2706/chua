@@ -6,7 +6,7 @@ test('phone mode supports five avatars and reachable broom controls without heav
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
   await context.addInitScript(()=>localStorage.setItem('temple-battery-saver','true'));
   try{
-    await page.goto('/');await page.locator('#name').fill('Dien thoai');await page.locator('#join-button').tap();
+    await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill('Dien thoai');await page.locator('#join-button').tap();
     await page.evaluate(async()=>{const{TempleView}=await import('/scene3d.js');await new Promise(resolve=>{const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){render.apply(this,args);TempleView.prototype.render=render;window.mobileQA=this;resolve();};});});
     const score=await page.locator('#blessing-score').boundingBox();
     await page.touchscreen.tap(score.x+5,score.y+5);await page.touchscreen.tap(score.x+5,score.y+5);
@@ -31,7 +31,7 @@ test('phone mode supports five avatars and reachable broom controls without heav
     }
     await expect.poll(()=>page.evaluate(()=>window.mobileQA.models.size)).toBe(5);
     const state=await page.evaluate(()=>{const v=window.mobileQA;return{ratio:v.renderer.getPixelRatio(),antialias:v.renderer.getContext().getContextAttributes().antialias,bounds:!!v.canvasSize,shadows:v.renderer.shadowMap.enabled,quality:v.quality,fps:v.targetFPS};});
-    expect(state.ratio).toBe(1.5);expect(state.antialias).toBe(true);expect(state.shadows).toBe(true);expect(state.quality).toBe('balanced');expect(state.fps).toBe(60);expect(state.bounds).toBe(true);
+    expect(state.ratio).toBe(1.8);expect(state.antialias).toBe(true);expect(state.shadows).toBe(true);expect(state.quality).toBe('high');expect(state.fps).toBe(60);expect(state.bounds).toBe(true);
     const box=await page.locator('#joystick').boundingBox(),x=box.x+box.width/2,y=box.y+box.height/2,cdp=await context.newCDPSession(page);
     await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x,y,id:1}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:x-35,y,id:1}]});
     try{await expect(page.locator('#broom-pickup')).toBeEnabled();}finally{await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await cdp.detach();}

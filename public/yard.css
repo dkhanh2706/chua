@@ -10,3 +10,9 @@
 }
 @media(max-width:360px){.yard-tools{width:155px}}
 @media(max-height:550px){.blessing-panel{top:77px;left:16px;padding:9px 12px;gap:2px}.blessing-panel strong{font-size:25px}.yard-tools{top:80px;bottom:auto;right:16px;width:188px}}
+.time-of-day{position:absolute;right:155px;bottom:77px;z-index:3;min-height:36px;padding:8px 14px;border:1px solid #fff9;border-radius:8px;background:#faf8edea;color:#657750;font:inherit;font-size:11px;cursor:pointer}
+.time-of-day[aria-pressed=true]{background:#253954;color:#ffe3a4;border-color:#8191a0}
+.time-of-day:focus-visible{outline:2px solid #d4ab5e;outline-offset:3px}
+body.playing.night-scene .topbar{background:linear-gradient(#dbe5f0cf,#dbe5f040,transparent)}
+@media(max-width:800px),(pointer:coarse){body.playing .time-of-day{display:none}body.playing.settings-open .time-of-day{display:block;right:15px;bottom:calc(246px + env(safe-area-inset-bottom,0px));width:196px;min-height:46px;font-size:12px}}
+@media(max-height:550px) and (pointer:coarse){body.playing.settings-open .time-of-day{right:221px;bottom:120px;width:150px;min-height:46px}}
