@@ -24,7 +24,8 @@
   function onCoast(x,y){const wx=(x-500)/10,wz=(y-350)/10;return wz<COAST.sandStart||wz>COAST.front||wx<COAST.left||wx>COAST.right;}
   function gardenWallSegments(){
     const river=(riverX(790)-500)/10,radius=4.8;
-    return [[[-56,-43],[-56,44]],[[-56,44],[-14,44]],[[-14,44],[-11,39]],[[11,39],[14,44]],[[14,44],[river-radius,44]],[[river+radius,44],[56,44]],[[56,44],[56,-78]],[[56,-78],[24,-78]]];
+    const rear=[[56,-70],[28,-70],...[25,21,18].map(x=>[x,COAST.sandStart-27*smooth(18,28,x)]),[-56,-43]];
+    return [[[-56,-43],[-56,44]],[[-56,44],[-14,44]],[[-14,44],[-11,39]],[[11,39],[14,44]],[[14,44],[river-radius,44]],[[river+radius,44],[56,44]],[[56,44],[56,-70]],...rear.slice(1).map((p,i)=>[rear[i],p])];
   }
   const GARDEN_WALLS=gardenWallSegments();
   function nearGardenWall(x,z){

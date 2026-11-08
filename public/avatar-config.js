@@ -9,17 +9,19 @@
     return {gender:female?'female':'male',shirt:'tunic',pants:'straight',shoes:'slipon',hair:female?'ponytail':'short',necklace:false,hairAccessory:'none',colors:{shirt:female?'#b68183':'#87966f',pants:'#656d60',shoes:'#68594d',shoeTrim:'#e6dfca',hair:'#443a32',hairTie:'#667959',skin:'#e6bd99',necklace:'#b89a58',hairAccessory:'#d59b9c'}};
   }
   const validColor=value=>typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value);
-  const characterCode=value=>typeof value==='string'?value.trim().toLowerCase():'';
+  const characterCode=value=>typeof value==='string'?value.normalize('NFC').trim().toLowerCase():'';
+  const characterCodes=Object.freeze({tom:'tom','chồn':'doraemon'});
+  const specialCharacter=value=>{const code=characterCode(value);return Object.hasOwn(characterCodes,code)?characterCodes[code]:undefined;};
   function withCharacterCode(avatar,code){
     const result=normalize(avatar);
     delete result.special;
-    if(characterCode(code)==='tom')result.special='tom';
+    const special=specialCharacter(code);if(special)result.special=special;
     return result;
   }
   function normalize(input,legacyCharacter=0,legacyColor){
     const raw=input&&typeof input==='object'&&!Array.isArray(input)?input:{};
     const result=defaults(raw.gender==='female'||raw.gender===undefined&&legacyCharacter===1?'female':'male');
-    if(raw.special==='tom')result.special='tom';
+    if(Object.values(characterCodes).includes(raw.special))result.special=raw.special;
     for(const key of Object.keys(styles))if(styles[key].includes(raw[key]))result[key]=raw[key];
     result.necklace=raw.necklace===true;
     for(const key of Object.keys(result.colors))if(validColor(raw.colors?.[key]))result.colors[key]=raw.colors[key].toLowerCase();
@@ -27,6 +29,6 @@
     if(result.gender==='male')result.hairAccessory='none';
     return result;
   }
-  const api={styles,labels,defaults,normalize,validColor,characterCode,withCharacterCode};
+  const api={styles,labels,defaults,normalize,validColor,characterCode,specialCharacter,withCharacterCode};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.AvatarConfig=api;
 })(typeof window!=='undefined'?window:globalThis);

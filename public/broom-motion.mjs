@@ -8,16 +8,19 @@ const smooth=t=>{t=THREE.MathUtils.clamp(t,0,1);return t*t*(3-2*t);};
 
 export function broomStrike(time,start){
   const age=time-(start??-100);if(age<0||age>=.65)return null;
-  const phase=age/.65;
   return{
-    angle:-1.2+2.4*smooth((phase-.22)/.54),
-    blend:smooth(phase/.22)*(1-smooth((phase-.76)/.24)),
+    // Raise on the avatar's right, cross the front at the 300 ms hit time,
+    // then follow through down its left before returning to the resting grip.
+    angle:-1.2+2.4*smooth((age-.12)/.36),
+    blend:smooth(age/.12)*(1-smooth((age-.48)/.17)),
   };
 }
 
 export function strikeBroomQuaternion(strike){
-  return new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(-Math.sin(strike.angle),-.035,Math.cos(strike.angle)).normalize());
+  return new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(Math.sin(strike.angle)*.72,-Math.sin(strike.angle)*.72,Math.cos(strike.angle)*.95).normalize());
 }
+
+const strikeHandTarget=strike=>new THREE.Vector3(-.18+.30*Math.sin(strike.angle),.66-.30*Math.sin(strike.angle),.32+.12*Math.cos(strike.angle));
 
 function solveRightArm(model,target,blend=1){
   const arm=model.arms[RIGHT_HAND],elbow=model.elbows[RIGHT_HAND],wrist=model.wrists[RIGHT_HAND];
@@ -34,7 +37,7 @@ function solveRightArm(model,target,blend=1){
 }
 
 export function applyRightHandStrike(model,strike){
-  solveRightArm(model,new THREE.Vector3(-.18-.30*Math.sin(strike.angle),.56,.27+.08*Math.cos(strike.angle)),strike.blend);
+  solveRightArm(model,strikeHandTarget(strike),strike.blend);
 }
 
 export function applyBroomPose(model,player,time){
@@ -47,9 +50,10 @@ export function applyBroomPose(model,player,time){
   const direction=new THREE.Vector3(-.13, -1,.10).lerp(new THREE.Vector3(-Math.sin(sweepAngle)*.25,-1,.08),contact).normalize();
   const quaternion=new THREE.Quaternion().setFromUnitVectors(down,direction),strike=broomStrike(time,player.hitStart);
   if(strike){
-    target.lerp(new THREE.Vector3(-.18-.30*Math.sin(strike.angle),.56,.27+.08*Math.cos(strike.angle)),strike.blend);
+    target.lerp(strikeHandTarget(strike),strike.blend);
     quaternion.slerp(strikeBroomQuaternion(strike),strike.blend);
-    model.body.rotation.y=-Math.sin(strike.angle)*.08*strike.blend;
+    model.body.rotation.y=Math.sin(strike.angle)*.10*strike.blend;
+    model.body.rotation.x+=Math.sin(strike.angle)*.06*strike.blend;
   }else model.body.rotation.y=0;
   solveRightArm(model,target);
   // The wrist and tool share one orientation; the grip remains attached even

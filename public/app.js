@@ -51,7 +51,7 @@ import {findWalkingRoute} from './navigation.mjs';
   try{view=new TempleView(gameCanvas);}catch(error){$('creator-error').textContent='Thiết bị chưa mở được đồ họa 3D. Hãy bật tăng tốc đồ họa hoặc thử Chrome / Edge mới nhé.';$('next-button').disabled=true;$('join-button').disabled=true;console.error(error);}
   const customizer=new Customizer(view);
   function validCharacterCode(){
-    const code=window.AvatarConfig.characterCode($('character-code').value),valid=!code||code==='tom';
+    const code=window.AvatarConfig.characterCode($('character-code').value),valid=!code||!!window.AvatarConfig.specialCharacter(code);
     $('character-code').setAttribute('aria-invalid',String(!valid));
     $('creator-error').textContent=valid?'':'Mã nhân vật chưa đúng. Kiểm tra lại hoặc để trống nhé.';
     if(!valid)$('character-code').focus();
@@ -149,7 +149,7 @@ import {findWalkingRoute} from './navigation.mjs';
     const name=$('name').value.trim();if(!name){$('name').focus();$('join-error').textContent='Bạn cho mình biết tên trước nhé.';return;}
     if(typeof io==='undefined'){$('join-error').textContent='Chưa tải được kết nối. Bạn tải lại trang nhé.';return;}
     const characterCode=window.AvatarConfig.characterCode($('character-code').value);
-    if(characterCode&&characterCode!=='tom'){$('entry-dialog').close();validCharacterCode();return;}
+    if(characterCode&&!window.AvatarConfig.specialCharacter(characterCode)){$('entry-dialog').close();validCharacterCode();return;}
     pendingJoin={name,character:customizer.gender==='female'?1:0,color:customizer.value.colors.shirt,avatar:customizer.value,characterCode,password:$('password').value};setJoining(true);$('join-error').textContent='';
     sound.start(!muted).catch(()=>{});connect();
     if(socket.connected)socket.emit('join',pendingJoin);else socket.connect();

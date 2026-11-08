@@ -31,7 +31,10 @@ for(const mobile of [false,true])test(`walk from the pond to the coast, tap slop
     observer=io('http://127.0.0.1:3001',{transports:['websocket'],forceNew:true});
     observer.on('state',state=>{remote=state.find(p=>p.id===myId)||remote;});
     await new Promise((resolve,reject)=>{observer.on('connect',()=>observer.emit('join',{name:'Observer',character:0}));observer.on('joined',resolve);observer.on('connect_error',reject);});
-    await walk(-1,0,()=>window.coastQA.me.x<55);
+    await walk(0,1,()=>window.coastQA.me.y>850);
+    await walk(-1,0,()=>window.coastQA.me.x< -175);
+    await walk(0,-1,()=>window.coastQA.me.y< -94);
+    await walk(1,0,()=>window.coastQA.me.x>200);
     await walk(0,-1,()=>window.coastQA.me.y< -190);
     await expect.poll(()=>remote?.y).toBeLessThan(0);
     expect(await page.evaluate(()=>window.coastQA.view.models.get(window.coastQA.me.id).root.position.y)).toBeLessThan(-.1);

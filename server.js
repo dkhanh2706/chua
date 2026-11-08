@@ -43,7 +43,7 @@ function createTemple(options = {}) {
       const occupied = new Set([...players.values()].map(p => p.spawn));
       const spawn = Array.from({length:ROOM_CAPACITY},(_,i)=>i).find(n => !occupied.has(n));
       const code=AvatarConfig.characterCode(input.characterCode);
-      if(code && code!=='tom')return socket.emit('join-error','bad-character-code');
+      if(code&&!AvatarConfig.specialCharacter(code))return socket.emit('join-error','bad-character-code');
       const avatar = AvatarConfig.withCharacterCode(AvatarConfig.normalize(input.avatar, input.character, input.color),code);
       const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand',sofaSeatId:null, bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0,lastHit:-Infinity };
       players.set(socket.id, p);

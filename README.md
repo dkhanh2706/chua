@@ -19,6 +19,8 @@ Bạn bè cùng Wi-Fi có thể mở `http://<IP-máy-chạy-server>:3000`. Nế
 
 ## Cách chơi
 
+- Nhập **chồn** vào ô **Mã nhân vật** để chọn **Doraemon 3D**: thân xanh tròn, mặt và bụng trắng, mũi đỏ, chuông vàng, túi trước bụng và đuôi đỏ. Có thể xoay xem trước, đi lại, ngồi thiền, cúi lạy, thắp nhang và dùng chổi như các nhân vật khác. Xóa mã để trở về nhân vật thường; mã **tom** vẫn dùng được.
+
 - **Ghế ngắm trăng và pháo hoa:** bên trái chùa, gần giá chổi phía tây, có hai hàng ghế gỗ, mỗi hàng ba chỗ. Chạm ghế để đi tới và ngồi, hoặc đến gần rồi bấm **Ngắm pháo hoa / E**. Khi có người ngồi, sân tự chuyển sang đêm, mặt trăng có vân bề mặt và quầng sáng dịu xuất hiện cao ở xa, ghế và nhân vật quay về phía cổng, pháo hoa bắn phía ngoài tường phía cổng và hồ sen sáng dịu từ dưới nước. Camera của người ngồi tự hướng ra màn pháo hoa. Kéo chuột hoặc vuốt trái/phải để nhìn quanh; nút đặt lại camera hoặc phím R đưa về góc nhìn mặc định. Bấm **Đứng dậy** hoặc di chuyển để rời ghế; khi hết người ngồi xem, sân trở về chế độ ngày/đêm đã chọn trước đó. Sáu người có thể ngồi cùng lúc, mỗi chỗ chỉ nhận một người.
 - Chọn **Nam** hoặc **Nữ**. Kéo ngang trên bản xem 3D, dùng hai nút xoay hoặc thanh trượt để xem nhân vật đủ **360°**.
 - Các nút **Đứng / Đi / Thiền / Lạy / Hương** ngay dưới bản xem cho phép thử hoạt ảnh trước khi vào sân. Thiền có chuyển tiếp ngồi xuống–đứng dậy; lạy và dâng hương tự hoàn thành trong khoảng 1,5 giây.

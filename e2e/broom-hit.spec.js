@@ -28,18 +28,14 @@ for(const mobile of [false,true])test(`a held broom always offers a forward swin
     await expect(a.locator('#hit-label')).toHaveText('Var nhau');
     await pageHook(a);await touch(a,'#broom-hit');
     await expect.poll(()=>a.evaluate(()=>window.hitQA.self.hitStart>0)).toBe(true);
-    await expect.poll(()=>a.evaluate(async()=>{
-      const {Vector3}=await import('three'),{view,self}=window.hitQA,broom=view.yardCare.carried.get(self.id);
-      const tip=new Vector3(0,-1,0).applyQuaternion(broom.quaternion);
-      return tip.x*Math.sin(self.hitHeading)+tip.z*Math.cos(self.hitHeading);
-    }),{intervals:[30],timeout:1200}).toBeGreaterThan(.75);
-    const held=await a.evaluate(async()=>{
-      const{Vector3}=await import('three'),{view,self}=window.hitQA,m=view.models.get(self.id),broom=view.yardCare.carried.get(self.id);
-      const grip=broom.localToWorld(new Vector3(0,1.35,0)),hand=m.wrists[0].localToWorld(new Vector3(0,-.08,.018));
-      const direction=new Vector3(0,-1,0).applyQuaternion(broom.quaternion);
-      return{distance:grip.distanceTo(hand),vertical:Math.abs(direction.y)};
-    });
-    expect(held.distance).toBeLessThan(.01);expect(held.vertical).toBeLessThan(.15);
+    await expect.poll(()=>a.evaluate(()=>window.hitQA.samples.some(s=>s.age>.43)),{intervals:[30],timeout:2000}).toBe(true);
+    const samples=await a.evaluate(()=>window.hitQA.samples),high=samples.find(s=>s.age>=.12&&s.age<.24),low=samples.findLast(s=>s.age>.40);
+    const contact=samples.reduce((a,b)=>Math.abs(a.age-.30)<Math.abs(b.age-.30)?a:b);
+    expect(high).toBeTruthy();expect(low).toBeTruthy();
+    expect(high.x).toBeLessThan(-.35);expect(high.y).toBeGreaterThan(.35);
+    expect(contact.z).toBeGreaterThan(.88);expect(Math.abs(contact.y)).toBeLessThan(.3);
+    expect(low.x).toBeGreaterThan(.35);expect(low.y).toBeLessThan(-.35);
+    expect(samples.every(s=>s.gripDistance<.01)).toBe(true);
     await expect(a.locator('#broom-hit')).toBeDisabled();
     await expect(a.locator('#toast')).toContainText('hụt');await expect(a.locator('#blessing-score')).toHaveText('0');
     // Turn by walking east. The other visitor is in front and carries no broom.
@@ -72,8 +68,19 @@ for(const mobile of [false,true])test(`a held broom always offers a forward swin
 
 async function pageHook(page){
   await page.evaluate(async()=>{
-    const{TempleView}=await import('/scene3d.js');await new Promise(resolve=>{
-      const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){render.apply(this,args);window.hitQA={view:this,players:args[1],self:args[1].find(p=>p.id===args[3]),other:args[1].find(p=>p.id!==args[3])};resolve();};
+    const[{TempleView},{Vector3}]=await Promise.all([import('/scene3d.js'),import('three')]);await new Promise(resolve=>{
+      const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){
+        render.apply(this,args);
+        const self=args[1].find(p=>p.id===args[3]),previous=window.hitQA,samples=previous&&previous.strokeStart===self.hitStart?previous.samples:[];
+        window.hitQA={view:this,players:args[1],self,other:args[1].find(p=>p.id!==args[3]),strokeStart:self.hitStart,samples};
+        const age=args[0]-(self.hitStart??-100),broom=this.yardCare.carried.get(self.id),m=this.models.get(self.id);
+        if(broom&&m&&age>=.1&&age<=.5){
+          const grip=broom.localToWorld(new Vector3(0,1.35,0)),hand=m.wrists[0].localToWorld(new Vector3(0,-.08,.018));
+          const direction=new Vector3(0,-1,0).applyQuaternion(broom.quaternion).applyAxisAngle(new Vector3(0,1,0),-self.hitHeading);
+          samples.push({age,x:direction.x,y:direction.y,z:direction.z,gripDistance:grip.distanceTo(hand)});
+        }
+        resolve();
+      };
     });
   });
 }

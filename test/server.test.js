@@ -82,6 +82,17 @@ test('Tom code is authoritative and preserves normal player actions', async t =>
   const c=await f.client(),error=event(c,'join-error');c.emit('join',{name:'An',character:0,characterCode:'unknown'});assert.equal(await error,'bad-character-code');
 });
 
+test('Doraemon requires its Vietnamese code and is visible to current and late-joining players',async t=>{
+  const f=await fixture(t),observer=await f.client();await f.join(observer);
+  const d=await f.client(),seen=event(observer,'player-joined');
+  const joined=await f.join(d,{characterCode:' CHỒN '.normalize('NFD')});
+  assert.equal(joined.players.find(p=>p.id===d.id).avatar.special,'doraemon');assert.equal((await seen).avatar.special,'doraemon');
+  const late=await f.client(),snapshot=await f.join(late);assert.equal(snapshot.players.find(p=>p.id===d.id).avatar.special,'doraemon');
+  const fake=await f.client(),normal=await f.join(fake,{avatar:{special:'doraemon'}});assert.equal(normal.players.find(p=>p.id===fake.id).avatar.special,undefined);
+  d.emit('action','sit');await new Promise(resolve=>setTimeout(resolve,70));assert.equal(f.players.get(d.id).action,'sit');
+  const invalid=await f.client(),rejected=event(invalid,'join-error');invalid.emit('join',{name:'Unknown',character:0,characterCode:'chon'});assert.equal(await rejected,'bad-character-code');
+});
+
 test('chat is shared only with joined players, validates text, limits spam and resets when empty',async t=>{
   let clock=10000;const f=await fixture(t,{now:()=>clock}),a=await f.client(),b=await f.client(),visitor=await f.client();await f.join(a);await f.join(b);
   let leaked=false;visitor.on('chat-message',()=>{leaked=true;});visitor.emit('chat-send','outside');

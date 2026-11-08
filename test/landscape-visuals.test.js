@@ -15,13 +15,16 @@ test('terraced waterfall stays above its bed, joins the river and clears every g
   for(const tree of makeTreeLayout())assert.equal(mountainFootprint(tree.x,tree.z,tree.radius+1),false,`${tree.id} clears the mountain`);
 });
 
-test('the garden boundary keeps its portals and opens onto the rear coast',async()=>{
-  const {Group}=await import('three'),{GardenBoundary,GARDEN_BOUNDS:b}=await import('../public/garden-boundary.mjs'),{TempleGarden}=await import('../public/garden.mjs');
+test('the garden boundary closes behind the temple and mountain and only opens at its two portals',async()=>{
+  const {Group,Raycaster,Vector3}=await import('three'),{GardenBoundary,GARDEN_BOUNDS:b}=await import('../public/garden-boundary.mjs'),{TempleGarden}=await import('../public/garden.mjs');
   const boundary=new GardenBoundary(new Group(),{riverX:world.riverX}),garden=new TempleGarden(new Group(),{batterySaver:true});
-  assert.equal(boundary.segments.length,8);assert.ok(boundary.root.getObjectByName('arched-stream-outlet'));
+  assert.deepEqual(boundary.segments,world.gardenWallSegments());assert.ok(boundary.root.getObjectByName('arched-stream-outlet'));
   const endpoints=new Map();for(const segment of boundary.segments)for(const point of segment){const key=point.join(',');endpoints.set(key,(endpoints.get(key)||0)+1);}
-  assert.equal([...endpoints.values()].filter(n=>n===1).length,6,'gate, stream portal and the new open coast');
+  assert.equal([...endpoints.values()].filter(n=>n===1).length,4,'only the gate and stream portal remain open');
   assert.ok([...endpoints.values()].every(n=>n<=2));
+  boundary.root.updateMatrixWorld(true);const ray=new Raycaster();
+  for(const [x,z] of [[-30,-35],[35,-65]]){ray.set(new Vector3(x,1,z),new Vector3(0,0,-1));assert.ok(ray.intersectObject(boundary.root,true).length,'the rear wall is visible and solid');}
+  for(const [a,b] of boundary.segments)for(let i=0;i<=10;i++){const t=i/10,x=a[0]+(b[0]-a[0])*t,z=a[1]+(b[1]-a[1])*t;assert.ok(world.coastHeight(x,z)>-.025,'the wall follows dry land rather than floating over the beach');}
   assert.equal(garden.crowns.isInstancedMesh,true);assert.equal(garden.crowns.count,21*24);
   for(const c of garden.crownTransforms){assert.ok(c.position.x-c.radius>b.left+.6);assert.ok(c.position.x+c.radius<b.right-.6);assert.ok(c.position.z-c.radius>b.rear+.6);assert.ok(c.position.z+c.radius<b.front-.6);}
   garden.dispose();

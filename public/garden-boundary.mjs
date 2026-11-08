@@ -3,12 +3,13 @@ import {ENTRANCE} from './entrance-layout.mjs';
 
 export const GARDEN_BOUNDS={left:-56,right:56,rear:-78,front:44};
 
-// A recessed entrance and stream arch enclose the garden; its rear opens to the beach.
+// A continuous enclosure follows the dry ground behind the temple and mountain.
 export class GardenBoundary{
   constructor(parent,{riverX=window.riverX,wallSegments}={}){
     this.root=new THREE.Group();this.root.name='complete-garden-enclosure';parent.add(this.root);
     const {left,right,rear,front}=GARDEN_BOUNDS,river=(riverX(front*10+350)-500)/10,radius=4.8;
-    this.segments=wallSegments||[[[left,-43],[left,front]],[[left,front],[-14,front]],[[-14,front],[-ENTRANCE.outerPier,ENTRANCE.z]],[[ENTRANCE.outerPier,ENTRANCE.z],[14,front]],[[14,front],[river-radius,front]],[[river+radius,front],[right,front]],[[right,front],[right,rear]],[[right,rear],[24,rear]]];
+    const rearPath=[[right,-70],[28,-70],...[25,21,18].map(x=>{const t=THREE.MathUtils.smoothstep(x,18,28);return[x,-43-27*t];}),[left,-43]];
+    this.segments=wallSegments||[[[left,-43],[left,front]],[[left,front],[-14,front]],[[-14,front],[-ENTRANCE.outerPier,ENTRANCE.z]],[[ENTRANCE.outerPier,ENTRANCE.z],[14,front]],[[14,front],[river-radius,front]],[[river+radius,front],[right,front]],[[right,front],[right,-70]],...rearPath.slice(1).map((p,i)=>[rearPath[i],p])];
     const plaster=new THREE.MeshStandardMaterial({color:'#e0ddcc',roughness:.93}),stone=new THREE.MeshStandardMaterial({color:'#a5b6a2',roughness:.9}),cap=new THREE.MeshStandardMaterial({color:'#49755b',roughness:.76});
     const box=new THREE.BoxGeometry(1,1,1),dummy=new THREE.Object3D();
     const batch=(name,mat,parts)=>{

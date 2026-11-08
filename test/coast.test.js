@@ -2,12 +2,12 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const world=require('../public/world');
 
-test('the pond side connects to sloping sand across the former invisible boundary, while sea and cliffs stay blocked',()=>{
+test('the rear coast slopes to the sea and the restored visible wall blocks direct crossings',()=>{
   const {validPosition,groundHeight,coastShoreZ,COAST}=world,x=200,shore=coastShoreZ(-30);
   let previous=0;
   for(let z=-20;z>=shore+.5;z-=.1){
     const y=z*10+350,h=groundHeight(x,y);
-    assert.equal(validPosition(x,y),true,`walkable at z=${z}`);
+    assert.equal(validPosition(x,y),Math.abs(z+43)>=.9,`wall clearance at z=${z}`);
     assert.ok(h<=previous+1e-8&&previous-h<.03,'continuous downhill grade');previous=h;
   }
   assert.ok(previous<COAST.waterY+.1);
@@ -68,8 +68,11 @@ test('the server accepts walking beyond y=125 and zero, and rejects continuing i
   t.after(async()=>{socket.disconnect();await new Promise(resolve=>temple.io.close(resolve));});
   const event=name=>new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error(`Timed out: ${name}`)),2000);socket.once(name,data=>{clearTimeout(timer);resolve(data);});});
   await event('connect');const joined=event('joined');socket.emit('join',{name:'Coast',character:0});await joined;
-  const p=temple.players.get(socket.id);p.x=200;p.y=130;
-  for(let y=120;y>=-300;y-=30){now+=200;const state=event('state');socket.emit('move',{x:200,y});await state;assert.equal(p.y,y,'authoritative movement is not clamped to the old courtyard');}
+  const p=temple.players.get(socket.id);p.x=-180;p.y=130;
+  for(let y=120;y>=-90;y-=30){now+=200;const state=event('state');socket.emit('move',{x:-180,y});await state;assert.equal(p.y,y,'authoritative movement is not clamped to the old courtyard');}
+  p.x=200;p.y=-60;now+=250;socket.emit('move',{x:200,y:-100});await new Promise(resolve=>setTimeout(resolve,80));assert.equal(p.y,-60,'the restored rear wall blocks server-side crossings too');
+  p.y=-100;
+  for(let y=-110;y>=-300;y-=30){now+=200;const state=event('state');socket.emit('move',{x:200,y});await state;assert.equal(p.y,y);}
   const safe=world.coastShoreZ(-30)*10+350+5;now+=250;let state=event('state');socket.emit('move',{x:200,y:safe});await state;assert.equal(p.y,safe);
   now+=250;socket.emit('move',{x:200,y:safe-20});await new Promise(resolve=>setTimeout(resolve,80));assert.equal(p.y,safe,'cannot walk offshore');
   for(const [sx,sz,x,z] of [[-67,0,-68,0],[67,0,68,0],[0,54,0,55]]){

@@ -1,15 +1,16 @@
 import * as THREE from 'three';
 import { createAvatarMotion,advanceAvatarMotion } from './avatar-motion.mjs';
 import { createTomFaceTexture } from './tom-face.mjs';
+import {addDoraemonDetails,drawDoraemonPortrait} from './doraemon-details.mjs';
 
 // Each arm/leg is one continuous surface, deformed by its connected bones.
 // Blended skin weights keep elbows and knees smooth throughout the animation.
 export function createAvatar(appearance){
-  const tom=appearance.special==='tom';
-  const a=tom?{...appearance,gender:'male',shirt:'short',pants:'straight',shoes:'slipon',hair:'bald',necklace:false,hairAccessory:'none'}:appearance;
-  const c=tom?{...a.colors,shirt:'#77858b',pants:'#77858b',skin:'#f3f0df',shoes:'#f3f0df'}:a.colors,root=new THREE.Group(),geometries=new Map(),materials=new Map();
+  const tom=appearance.special==='tom',doraemon=appearance.special==='doraemon',cartoon=tom||doraemon;
+  const a=cartoon?{...appearance,gender:'male',shirt:'short',pants:'straight',shoes:'slipon',hair:'bald',necklace:false,hairAccessory:'none'}:appearance;
+  const c=doraemon?{...a.colors,shirt:'#008dcc',pants:'#008dcc',skin:'#f7faf6',shoes:'#f7faf6'}:tom?{...a.colors,shirt:'#77858b',pants:'#77858b',skin:'#f3f0df',shoes:'#f3f0df'}:a.colors,root=new THREE.Group(),geometries=new Map(),materials=new Map();
   const geometry=(key,make)=>{if(!geometries.has(key))geometries.set(key,make());return geometries.get(key);};
-  const material=color=>{if(!materials.has(color))materials.set(color,new THREE.MeshStandardMaterial({color,roughness:tom?.8:.94}));return materials.get(color);};
+  const material=color=>{if(!materials.has(color))materials.set(color,new THREE.MeshStandardMaterial({color,roughness:cartoon?.8:.94}));return materials.get(color);};
   const sphere=geometry('sphere',()=>new THREE.SphereGeometry(1,32,24));
   function add(parent,geo,color,x,y,z,sx=1,sy=1,sz=1){const m=new THREE.Mesh(geo,material(color));m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
   const ball=(p,x,y,z,rx,ry,rz,color)=>add(p,sphere,color,x,y,z,rx,ry,rz);
@@ -38,20 +39,21 @@ export function createAvatar(appearance){
     return skinned;
   }
   const body=group(root,0,.72,0);
+  if(doraemon)body.scale.y=.83;
   const female=a.gender==='female',width=female?.96:1;
   const shirt=group(body);shirt.scale.x=width;
   const tunic=a.shirt==='tunic';
-  const profile=new THREE.CatmullRomCurve3((tom?[[0,-.19],[.16,-.17],[.26,-.10],[.30,.05],[.30,.25],[.265,.48],[.285,.67],[.255,.78],[.18,.87],[.13,.93],[0,.95]]:tunic?[[.43,-.14],[.455,-.11],[.45,-.02],[.39,.22],[.33,.48],[.345,.7],[.31,.81],[.215,.88],[.16,.92]]:[[.34,.035],[.365,.07],[.35,.3],[.32,.49],[.34,.7],[.305,.81],[.21,.88],[.16,.92]]).map(([r,y])=>new THREE.Vector3(r,y,0)));
-  const clothGeometry=new THREE.LatheGeometry(profile.getPoints(tom?112:40).map(p=>new THREE.Vector2(p.x,p.y)),tom?96:40);
+  const profile=new THREE.CatmullRomCurve3((doraemon?[[0,-.39],[.23,-.38],[.36,-.26],[.435,-.03],[.445,.23],[.415,.48],[.35,.70],[.27,.84],[.19,.92],[0,.95]]:tom?[[0,-.19],[.16,-.17],[.26,-.10],[.30,.05],[.30,.25],[.265,.48],[.285,.67],[.255,.78],[.18,.87],[.13,.93],[0,.95]]:tunic?[[.43,-.14],[.455,-.11],[.45,-.02],[.39,.22],[.33,.48],[.345,.7],[.31,.81],[.215,.88],[.16,.92]]:[[.34,.035],[.365,.07],[.35,.3],[.32,.49],[.34,.7],[.305,.81],[.21,.88],[.16,.92]]).map(([r,y])=>new THREE.Vector3(r,y,0)));
+  const clothGeometry=new THREE.LatheGeometry(profile.getPoints(cartoon?112:40).map(p=>new THREE.Vector2(p.x,p.y)),tom?96:doraemon?64:40);
   const cloth=add(shirt,clothGeometry,c.shirt,0,0,0);cloth.scale.z=.84;
   function outline(parent,geo,color,x,y,z,sx,sy,sz){const tint=new THREE.Color(color).multiplyScalar(.54);const m=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:tint,side:THREE.BackSide}));m.position.set(x,y,z);m.scale.set(sx,sy,sz);parent.add(m);return m;}
-  if(!tom)outline(shirt,clothGeometry,c.shirt,0,0,0,1.017,1.01,.855);
-  if(tom){
+  if(!cartoon)outline(shirt,clothGeometry,c.shirt,0,0,0,1.017,1.01,.855);
+  if(cartoon){
     // The belly is a color on the continuous torso surface, without an overlay seam.
-    const positions=clothGeometry.attributes.position,colors=[],fur=new THREE.Color(c.shirt),belly=new THREE.Color('#dce0db');
+    const positions=clothGeometry.attributes.position,colors=[],fur=new THREE.Color(c.shirt),belly=new THREE.Color(doraemon?'#f7faf6':'#dce0db');
     for(let i=0;i<positions.count;i++){
       const x=positions.getX(i),y=positions.getY(i),z=positions.getZ(i);
-      const ellipse=(x/.225)**2+((y-.34)/.43)**2;
+      const ellipse=(x/(doraemon?.35:.225))**2+((y-(doraemon?.25:.34))/(doraemon?.49:.43))**2;
       const blend=(1-THREE.MathUtils.smoothstep(ellipse,.88,1.08))*THREE.MathUtils.smoothstep(z,.06,.17);
       const color=fur.clone().lerp(belly,blend);colors.push(color.r,color.g,color.b);
     }
@@ -62,16 +64,17 @@ export function createAvatar(appearance){
   const clothShade='#'+new THREE.Color(c.shirt).multiplyScalar(.75).getHexString();
   const collarColor='#'+new THREE.Color(c.shirt).lerp(new THREE.Color('#f0dfba'),.32).getHexString();
   if(tunic)stroke(shirt,[[-.15,.89,.13],[-.08,.73,.25],[.1,.48,.285],[.17,.2,.3]],collarColor,.013);
-  else if(!tom)stroke(shirt,[[-.16,.88,.13],[-.1,.83,.23],[0,.81,.27],[.1,.83,.23],[.16,.88,.13]],collarColor,.012);
+  else if(!cartoon)stroke(shirt,[[-.16,.88,.13],[-.1,.83,.23],[0,.81,.27],[.1,.83,.23],[.16,.88,.13]],collarColor,.012);
   if(tunic){
     stroke(shirt,[[-.21,.42,.235],[-.26,.16,.294],[-.29,-.1,.299]],clothShade,.006);
     stroke(shirt,[[.24,.35,.23],[.30,.12,.27],[.33,-.1,.277]],clothShade,.006);
     const belt=cyl(shirt,0,.25,0,.365,.37,.032,collarColor);belt.scale.z=.84;
   }else if(a.shirt==='long')for(let i=0;i<3;i++)ball(shirt,.02,.3+i*.17,.284,.017,.017,.01,collarColor);
   // A short neck is tucked into both shirt and head.
-  if(tom)ball(body,0,.95,-.015,.145,.22,.14,c.shirt);
+  if(cartoon)ball(body,0,.95,-.015,.145,.22,.14,c.shirt);
   else cyl(body,0,.95,0,.155,.18,.25,c.skin);
   const head=group(body,0,1.28,0);
+  if(doraemon){head.position.y=1.39;head.scale.y=1/.83;}
   const faceStart=head.children.length;
   ball(head,0,0,0,.46,.52,.425,c.skin);
   outline(head,sphere,c.skin,0,0,0,.468,.528,.433);
@@ -105,6 +108,10 @@ export function createAvatar(appearance){
     }
     for(let i=0;i<3;i++){const tuft=add(head,new THREE.ConeGeometry(.045,.15,16),'#77858b',-.11+i*.075,.425,-.04);tuft.rotation.z=-.35+i*.22;}
   }
+  if(doraemon){
+    head.children.slice(faceStart).forEach(o=>{o.visible=false;});eyes.length=0;
+    addDoraemonDetails({head,body,shirt,eyes,ball,add,stroke,profile});
+  }
   const hair=group(head);
   if(a.hair!=='bald'){
     add(hair,new THREE.SphereGeometry(.472,28,18,0,Math.PI*2,0,1.54),c.hair,0,.045,-.012,1,1.1,.93);
@@ -129,24 +136,25 @@ export function createAvatar(appearance){
   }
   const arms=[],elbows=[],wrists=[];
   for(const side of [-1,1]){
-    const arm=bone(body,side*(tom?.285:.345)*width,tom?.76:.78,0),short=a.shirt==='short';
+    const arm=bone(body,side*(doraemon?.40:tom?.285:.345)*width,doraemon?.65:tom?.76:.78,0),short=a.shirt==='short';
     const elbow=bone(arm,0,-.34,0),wrist=bone(elbow,0,-.29,0);
-    limb(body,arm,elbow,wrist,tom?.125:.151,tom?.075:.1,c.shirt,tom?-.585:short?-.24:null);
-    ball(wrist,0,-.065,.018,tom?.084:.092,tom?.105:.12,.072,c.skin);ball(wrist,-side*(tom?.061:.075),-.045,.05,tom?.033:.04,.055,.038,c.skin);
+    limb(body,arm,elbow,wrist,doraemon?.16:tom?.125:.151,doraemon?.11:tom?.075:.1,c.shirt,cartoon?-.585:short?-.24:null);
+    ball(wrist,0,-.065,.018,doraemon?.14:tom?.084:.092,doraemon?.14:tom?.105:.12,doraemon?.13:.072,c.skin);
+    if(!doraemon)ball(wrist,-side*(tom?.061:.075),-.045,.05,tom?.033:.04,.055,.038,c.skin);
     arms.push(arm);elbows.push(elbow);wrists.push(wrist);
   }
-  if(!tom)cyl(root,0,.72,0,.32,.33,.25,c.pants);
+  if(!cartoon)cyl(root,0,.72,0,.32,.33,.25,c.pants);
   const legs=[],knees=[],ankles=[],footMeshes=[];
   const foot=(...args)=>{const m=ball(...args);footMeshes.push(m);return m;};
   for(const side of [-1,1]){
     const leg=bone(root,side*(tom?.155:.19),.72,0),wide=a.pants==='wide',shorts=a.pants==='shorts';
     const knee=bone(leg,0,-.34,0),ankle=bone(knee,0,-.29,0);
-    limb(root,leg,knee,ankle,tom?.143:wide?.19:.16,tom?.092:wide?.17:.125,c.pants,shorts?-.3:null);
+    limb(root,leg,knee,ankle,doraemon?.17:tom?.143:wide?.19:.16,doraemon?.12:tom?.092:wide?.17:.125,c.pants,shorts?-.3:null);
     if(a.shoes==='sandals'){
       foot(ankle,0,.015,.075,.15,.09,.245,c.skin);foot(ankle,0,-.055,.075,.17,.045,.27,c.shoes);
       const strap=capsule(ankle,0,.03,.14,.033,.25,c.shoes);strap.rotation.z=Math.PI/2;
     }else{
-      foot(ankle,0,.025,.07,tom?.137:.17,tom?.095:.105,tom?.215:.265,c.shoes);
+      foot(ankle,0,.025,.07,doraemon?.18:tom?.137:.17,doraemon?.115:tom?.095:.105,doraemon?.255:tom?.215:.265,c.shoes);
       if(a.shoes==='sneakers'){foot(ankle,0,-.065,.07,.175,.025,.27,c.shoeTrim);for(let i=0;i<3;i++){const lace=capsule(ankle,0,.138-i*.004,.08+i*.045,.009,.13,c.shoeTrim);lace.rotation.z=Math.PI/2;}}
     }
     legs.push(leg);knees.push(knee);ankles.push(ankle);
@@ -166,14 +174,19 @@ export function createAvatar(appearance){
     const mesh=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.8}));mesh.castShadow=true;tail.add(mesh);
     ball(tail,.45,.35,-.55,.024,.025,.024,'#f3f0df');
   }
+  if(doraemon){
+    tail=group(body,0,-.15,-.35);tail.name='doraemon-red-tail';
+    const stem=cyl(tail,0,0,-.07,.025,.025,.14,'#e9383b');stem.rotation.x=Math.PI/2;
+    ball(tail,0,0,-.16,.085,.085,.085,'#e9383b');
+  }
   const shadowPixels=new Uint8Array(32*32*4);for(let y=0;y<32;y++)for(let x=0;x<32;x++){const r=Math.hypot((x-15.5)/16,(y-15.5)/16),i=(y*32+x)*4;shadowPixels[i]=58;shadowPixels[i+1]=62;shadowPixels[i+2]=43;shadowPixels[i+3]=Math.round(Math.max(0,1-r)**2*140);}
   const shadowMap=new THREE.DataTexture(shadowPixels,32,32,THREE.RGBAFormat);shadowMap.needsUpdate=true;
   const shadow=new THREE.Mesh(new THREE.PlaneGeometry(1.12,.72),new THREE.MeshBasicMaterial({map:shadowMap,transparent:true,depthWrite:false}));shadow.rotation.x=-Math.PI/2;shadow.position.y=.012;root.add(shadow);
   const seed=JSON.stringify(a).split('').reduce((s,char)=>(s*31+char.charCodeAt(0))%2147483647,19);
   const down=new THREE.Vector3(0,-1,0);
   const seatedLegs=[-1,1].map(side=>{
-    const upper=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(side*.70,-.12,.70).normalize());
-    const lower=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(-side*.98,-.10,.15).normalize());
+    const upper=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(side*(doraemon?.65:.70),doraemon?-.70:-.12,doraemon?.65:.70).normalize());
+    const lower=new THREE.Quaternion().setFromUnitVectors(down,new THREE.Vector3(-side*.98,doraemon?-.30:-.10,.15).normalize());
     const foot=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-side*1.3);
     return{upper,knee:upper.clone().invert().multiply(lower),ankle:lower.clone().invert().multiply(foot)};
   });
@@ -207,7 +220,7 @@ export function poseAvatar(model,player,time,dt){
   const clasp=Math.max(sit,prayer);
   model.arms.forEach((arm,i)=>{
     const side=i===0?-1:1,swing=Math.sin(phase+i*Math.PI)*moveBlend;
-    const relaxedArm=model.appearance.special==='tom'?side*.12:-side*.08;
+    const relaxedArm=(model.appearance.special==='tom'||model.appearance.special==='doraemon')?side*.12:-side*.08;
     arm.rotation.set(.04+swing*.4*(1-clasp),0,relaxedArm);
     const armPose=model.seatedOnSofa?model.sofaArms[i]:model.seatedArms[i];
     arm.quaternion.slerp(armPose.upper,sit);
@@ -241,7 +254,7 @@ export function poseAvatar(model,player,time,dt){
   // planted foot stays on the floor instead of clipping when knees bend.
   model.root.updateMatrixWorld(true);model.inverseRoot.copy(model.root.matrixWorld).invert();let floor=Infinity;
   for(const foot of model.footMeshes){model.footMatrix.multiplyMatrices(model.inverseRoot,foot.matrixWorld);const e=model.footMatrix.elements;floor=Math.min(floor,e[13]-Math.hypot(e[1],e[5],e[9]));}
-  model.postureOffset=model.seatedOnSofa?THREE.MathUtils.lerp(-floor,-.595,sit):-floor;
+  model.postureOffset=model.seatedOnSofa?THREE.MathUtils.lerp(-floor,model.appearance.special==='doraemon'?-(.72-.39*.83):-.595,sit):-floor;
   model.shadow.position.y=.012-model.postureOffset;model.shadow.scale.set(1+sit*.3,1+sit*.3,1);
   model.heldIncense.visible=incense>.03&&motion.progress<.84;
   model.heldIncense.position.set(0,.59+incense*.05-reach*.08,.41+reach*.14);
@@ -257,6 +270,7 @@ export function disposeAvatar(model){
 
 export function drawPortrait(canvas,a){
   const c=canvas.getContext('2d'),w=canvas.width,h=canvas.height;c.clearRect(0,0,w,h);c.save();c.scale(w/60,h/72);
+  if(a.special==='doraemon'){drawDoraemonPortrait(c);c.restore();return;}
   if(a.special==='tom'){
     c.fillStyle='#77858b';c.beginPath();c.ellipse(30,64,20,23,0,0,Math.PI*2);c.fill();
     for(const side of [-1,1]){const x=30+side*15;c.beginPath();c.moveTo(x-side*11,27);c.lineTo(x+side*7,2);c.lineTo(x+side*10,34);c.fill();c.fillStyle='#dfaaa6';c.beginPath();c.moveTo(x-side*5,25);c.lineTo(x+side*6,8);c.lineTo(x+side*6,29);c.fill();c.fillStyle='#77858b';}

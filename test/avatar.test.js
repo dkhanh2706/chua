@@ -3,21 +3,38 @@ const assert=require('node:assert/strict');
 const config=require('../public/avatar-config');
 const modelModule=import('../public/avatar-model.mjs');
 
-test('Tom uses the shared animated rig for walking, meditation, bowing and sofa sitting',async()=>{
+test('Tom and Doraemon use the shared animated rig for walking, meditation, bowing and sofa sitting',async()=>{
   const {createAvatar,poseAvatar,disposeAvatar}=await modelModule;
-  const appearance=config.withCharacterCode(config.defaults(),' TOM '),m=createAvatar(appearance);
+  for(const code of [' TOM ','chồn']){
+  const appearance=config.withCharacterCode(config.defaults(),code),m=createAvatar(appearance);
   assert.equal(m.signature,JSON.stringify(appearance));assert.ok(m.tail);assert.equal(m.eyes.length,2);
+  if(appearance.special==='doraemon'){
+    for(const name of ['doraemon-blue-head','doraemon-white-face','doraemon-red-nose','doraemon-pocket','doraemon-bell','doraemon-red-tail'])assert.ok(m.root.getObjectByName(name),name);
+    m.root.traverse(o=>{if(o.geometry)for(const n of o.geometry.attributes.position.array)assert.ok(Number.isFinite(n));});
+  }
   for(const p of [{action:'stand',moving:true},{action:'sit'},{action:'bow',ritual:{kind:'incense',start:0}},{action:'sit',sofaSeatId:'sofa'}]){
     for(let i=0;i<40;i++)poseAvatar(m,p,i*.04,.04);
     assert.ok(Number.isFinite(m.postureOffset));m.root.updateMatrixWorld(true);m.root.traverse(o=>{for(const n of o.matrixWorld.elements)assert.ok(Number.isFinite(n));});
   }
   assert.equal(config.withCharacterCode(appearance,'').special,undefined);disposeAvatar(m);
+  }
+});
+
+test('Doraemon code supports Vietnamese Unicode forms, validates exactly and clears when changing codes',()=>{
+  const a=config.defaults();
+  for(const code of ['chồn',' CHỒN ','chồn'.normalize('NFD')]){
+    assert.equal(config.specialCharacter(code),'doraemon');assert.equal(config.withCharacterCode(a,code).special,'doraemon');
+  }
+  for(const code of ['chon','doraemon','__proto__','tom chồn'])assert.equal(config.specialCharacter(code),undefined);
+  const d=config.withCharacterCode(a,'chồn');assert.equal(config.normalize(d).special,'doraemon');
+  assert.equal(config.withCharacterCode(d,'tom').special,'tom');assert.equal(config.withCharacterCode(d,'').special,undefined);
+  assert.equal(config.withCharacterCode(d,'unknown').special,undefined);
 });
 
 test('bowing and incense keep both folded hands on their own side of the chest for every character',async()=>{
   const {createAvatar,poseAvatar,disposeAvatar}=await modelModule;
   const {Vector3}=await import('three');
-  for(const appearance of [config.defaults('male'),config.defaults('female'),config.withCharacterCode(config.defaults(),'tom')])for(const kind of ['bow','incense']){
+  for(const appearance of [config.defaults('male'),config.defaults('female'),config.withCharacterCode(config.defaults(),'tom'),config.withCharacterCode(config.defaults(),'chồn')])for(const kind of ['bow','incense']){
     const m=createAvatar(appearance);
     for(let frame=0;frame<=90;frame++){
       poseAvatar(m,{action:frame<90?'bow':'stand',ritual:{kind,start:0}},frame/60,1/60);m.root.updateMatrixWorld(true);
