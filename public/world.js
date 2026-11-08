@@ -1,5 +1,38 @@
 (function (root) {
   const WORLD = { width: 1000, height: 700 };
+  const WALK_BOUNDS={left:-400,right:1400,rear:-650,front:1100};
+  const COAST={left:-56.6,right:56.6,sandStart:-43,front:44.6,waterY:-2.6,cliffX:24};
+  const smooth=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
+  function coastShoreZ(x){
+    x=Math.max(COAST.left,Math.min(COAST.right,x));
+    const bay=-72+4*Math.sin((x+39)*.055)+1.5*Math.sin(x*.15)+25*(1-smooth(-55,-40,x));
+    return bay*(1-smooth(16,30,x))-88*smooth(16,30,x);
+  }
+  function coastProgress(x,z){
+    const start=COAST.sandStart-27*smooth(18,28,x),shore=coastShoreZ(x);
+    const sideWidth=20+2*Math.sin(z*.05)+1.5*Math.sin(z*.13);
+    const side=Math.max(0,(Math.abs(x)-COAST.right)/sideWidth);
+    const rear=Math.max(0,(start-z)/(start-shore));
+    const frontShore=66+2.8*Math.sin(x*.055)+1.2*Math.sin(x*.13);
+    const front=Math.max(0,(z-COAST.front)/(frontShore-COAST.front));
+    return Math.hypot(side,Math.max(rear,front));
+  }
+  function coastHeight(x,z){
+    const t=coastProgress(x,z);
+    return COAST.waterY*smooth(0,1,t)-Math.max(0,t-1)*3;
+  }
+  function onCoast(x,y){const wx=(x-500)/10,wz=(y-350)/10;return wz<COAST.sandStart||wz>COAST.front||wx<COAST.left||wx>COAST.right;}
+  function gardenWallSegments(){
+    const river=(riverX(790)-500)/10,radius=4.8;
+    return [[[-56,-43],[-56,44]],[[-56,44],[-14,44]],[[-14,44],[-11,39]],[[11,39],[14,44]],[[14,44],[river-radius,44]],[[river+radius,44],[56,44]],[[56,44],[56,-78]],[[56,-78],[24,-78]]];
+  }
+  const GARDEN_WALLS=gardenWallSegments();
+  function nearGardenWall(x,z){
+    return GARDEN_WALLS.some(([a,b])=>{
+      const dx=b[0]-a[0],dz=b[1]-a[1],t=Math.max(0,Math.min(1,((x-a[0])*dx+(z-a[1])*dz)/(dx*dx+dz*dz)));
+      return Math.hypot(x-a[0]-dx*t,z-a[1]-dz*t)<.9;
+    });
+  }
   const ROOM_CAPACITY=6;
   const URN = { x: 500, y: 180 };
   const COLORS = ['#a46e46', '#7d8b65', '#b17a7c', '#778c9e', '#b69a56'];
@@ -29,24 +62,27 @@
     return .02+1.08*(1-t*t)**2;
   }
   function validPosition(x, y) {
-    if (x < 25 || x > 975 || y < 25 || y > 665) return false;
+    if (!Number.isFinite(x)||!Number.isFinite(y)||x<WALK_BOUNDS.left||x>WALK_BOUNDS.right||y<WALK_BOUNDS.rear||y>WALK_BOUNDS.front) return false;
+    const wx=(x-500)/10,wz=(y-350)/10;
+    if(coastProgress(wx,wz)>.99||nearGardenWall(wx,wz))return false;
+    if(wz< -22.5&&wz> -79&&wx>COAST.cliffX&&wx<57)return false;
     // Circular walls and a flat, open doorway share the same architectural plan.
     const entry=HALL_ENTRY;
     const dx=x-HALL.x,dy=y-HALL.y,distance=Math.hypot(dx,dy),angle=Math.abs(Math.atan2(dx,dy));
-    if(y<125&&distance>HALL.radius-8)return false;
     if(Math.abs(distance-HALL.radius)<8&&angle>HALL.entryAngle-.025)return false;
     if(Math.abs(y-entry.y)<entry.halfDepth&&Math.abs(dx)<Math.sin(HALL.entryAngle)*HALL.radius+8&&(x<entry.left+entry.clearance||x>entry.right-entry.clearance))return false;
     if (y > 95 && y < 160 && x > 438 && x < 562) return false;
     if(Math.abs(y-86)<8&&Math.abs(x-500)<86)return false;
     if(sofaAt(x,y)||HALL_COLUMNS.some(c=>Math.hypot(x-c.x,y-c.y)<c.radius))return false;
     if (((x - 204) / 134) ** 2 + ((y - 451) / 86) ** 2 < 1 && !lotusAt(x,y) && !pondStepAt(x,y)) return false;
-    if (Math.abs(x - riverX(y)) < 36 && !(y > 480 && y < 530)) return false;
+    if (wz>=-24&&wz<=44.4&&Math.abs(x - riverX(y)) < 36 && !(y > 480 && y < 530)) return false;
     if(Math.abs(x-riverX(505))<66&&Math.abs(y-505)>25&&Math.abs(y-505)<32)return false;
     if (Math.hypot(x - URN.x, y - URN.y) < 30) return false;
     return true;
   }
   function canWalkBetween(ax,ay,bx,by){const steps=Math.max(1,Math.ceil(Math.hypot(bx-ax,by-ay)/4));for(let i=0;i<=steps;i++){const t=i/steps;if(!validPosition(ax+(bx-ax)*t,ay+(by-ay)*t))return false;}return true;}
   function groundHeight(x, y, time=0) {
+    if(onCoast(x,y))return coastHeight((x-500)/10,(y-350)/10);
     const lotus=lotusAt(x,y);if(lotus)return lotusHeight(lotus.id,time);
     if(pondStepAt(x,y))return .29;
     if(Math.hypot(x-HALL.x,y-HALL.y)<HALL.radius+2&&y<=HALL_ENTRY.y)return HALL.floor;
@@ -54,7 +90,7 @@
     if (Math.abs(x - riverX(505)) <= 66 && y > 475 && y < 535) return bridgeHeight(x,y);
     return 0;
   }
-  const api = { WORLD,ROOM_CAPACITY,WATCH_BENCHES,WATCH_SEATS, URN, COLORS, HALL,insideHall,SOFA_LAYOUT,SOFA_SEATS,SOFA_SEAT_HEIGHT,SOFA_SCALE_Y,SOFA_REACH,HALL_COLUMNS,HALL_ENTRY,sofaAt,sofaSeatAt,canWalkBetween,LOTUS_SEATS,POND_STEPS,lotusAt,pondStepAt,lotusHeight,riverX, bridgeHeight,validPosition, groundHeight };
+  const api = { WORLD,WALK_BOUNDS,COAST,coastShoreZ,coastProgress,coastHeight,onCoast,gardenWallSegments,ROOM_CAPACITY,WATCH_BENCHES,WATCH_SEATS, URN, COLORS, HALL,insideHall,SOFA_LAYOUT,SOFA_SEATS,SOFA_SEAT_HEIGHT,SOFA_SCALE_Y,SOFA_REACH,HALL_COLUMNS,HALL_ENTRY,sofaAt,sofaSeatAt,canWalkBetween,LOTUS_SEATS,POND_STEPS,lotusAt,pondStepAt,lotusHeight,riverX, bridgeHeight,validPosition, groundHeight };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else Object.assign(root, api);
 })(typeof window !== 'undefined' ? window : globalThis);

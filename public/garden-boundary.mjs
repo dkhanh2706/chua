@@ -1,13 +1,14 @@
 import * as THREE from 'three';
+import {ENTRANCE} from './entrance-layout.mjs';
 
 export const GARDEN_BOUNDS={left:-56,right:56,rear:-78,front:44};
 
-// One enclosure, with a recessed entrance and a finished arch over the outlet.
+// A recessed entrance and stream arch enclose the garden; its rear opens to the beach.
 export class GardenBoundary{
-  constructor(parent,{riverX=window.riverX}={}){
+  constructor(parent,{riverX=window.riverX,wallSegments}={}){
     this.root=new THREE.Group();this.root.name='complete-garden-enclosure';parent.add(this.root);
     const {left,right,rear,front}=GARDEN_BOUNDS,river=(riverX(front*10+350)-500)/10,radius=4.8;
-    this.segments=[[[left,rear],[left,front]],[[left,front],[-12,front]],[[-12,front],[-8.4,30.7]],[[8.4,30.7],[12,front]],[[12,front],[river-radius,front]],[[river+radius,front],[right,front]],[[right,front],[right,rear]],[[right,rear],[left,rear]]];
+    this.segments=wallSegments||[[[left,-43],[left,front]],[[left,front],[-14,front]],[[-14,front],[-ENTRANCE.outerPier,ENTRANCE.z]],[[ENTRANCE.outerPier,ENTRANCE.z],[14,front]],[[14,front],[river-radius,front]],[[river+radius,front],[right,front]],[[right,front],[right,rear]],[[right,rear],[24,rear]]];
     const plaster=new THREE.MeshStandardMaterial({color:'#e0ddcc',roughness:.93}),stone=new THREE.MeshStandardMaterial({color:'#a5b6a2',roughness:.9}),cap=new THREE.MeshStandardMaterial({color:'#49755b',roughness:.76});
     const box=new THREE.BoxGeometry(1,1,1),dummy=new THREE.Object3D();
     const batch=(name,mat,parts)=>{

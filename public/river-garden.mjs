@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import {seededRandom} from './garden-layout.mjs';
 import {GARDEN_BOUNDS} from './garden-boundary.mjs';
-import {streamCenter} from './waterfall-layout.mjs';
+import {streamCenter,riverHalfWidth as halfWidth,RIVER_START_Z} from './waterfall-layout.mjs';
 import {addNightLight} from './night-lights.mjs';
+import {flowingWaterMaterial} from './flowing-water.mjs';
 
 export const riverCenter=streamCenter;
-const halfWidth=z=>3.6+Math.exp(-(((z+22)/3.6)**2));
-const BRIDGE_Z=15.5,SPAN=6.6,RIVER_LENGTH=GARDEN_BOUNDS.front+.4+24;
+const BRIDGE_Z=15.5,SPAN=6.6,RIVER_LENGTH=GARDEN_BOUNDS.front+.4-RIVER_START_Z;
 
 function strip(rows,columns,point){
   const positions=[],uv=[],indices=[];
@@ -14,7 +14,7 @@ function strip(rows,columns,point){
     positions.push(...point(i/rows,j/columns));uv.push(j/columns,i/rows);
     if(i<rows&&j<columns){const a=i*(columns+1)+j,b=a+columns+1;indices.push(a,b,a+1,a+1,b,b+1);}
   }
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();return g;
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setAttribute('aCascade',new THREE.Float32BufferAttribute(new Float32Array(positions.length/3),1));g.setIndex(indices);g.computeVertexNormals();return g;
 }
 
 export class RiverGarden{
@@ -25,7 +25,7 @@ export class RiverGarden{
   buildTerrain(){
     const {left,right,rear,front}=GARDEN_BOUNDS;
     const grass=new THREE.MeshStandardMaterial({color:'#83ac76',roughness:1});
-    const upper=new THREE.Mesh(new THREE.PlaneGeometry(right-left+1.2,-24-rear+.6),grass);upper.rotation.x=-Math.PI/2;upper.position.set(0,-.025,(rear-.6-24)/2);upper.receiveShadow=true;this.root.add(upper);
+    const upper=new THREE.Mesh(new THREE.PlaneGeometry(right-left+1.2,19),grass);upper.rotation.x=-Math.PI/2;upper.position.set(0,-.025,-33.5);upper.receiveShadow=true;this.root.add(upper);
     for(const side of [-1,1]){
       const shape=new THREE.Shape(),edge=side<0?left-.6:right+.6;
       shape.moveTo(edge,-24);shape.lineTo(riverCenter(-24)+side*halfWidth(-24),-24);
@@ -33,38 +33,14 @@ export class RiverGarden{
       shape.lineTo(edge,front+.6);shape.closePath();
       const land=new THREE.Mesh(new THREE.ShapeGeometry(shape),grass);land.rotation.x=Math.PI/2;land.position.y=-.025;land.material.side=THREE.DoubleSide;land.receiveShadow=true;land.name='recessed-river-terrain';this.root.add(land);
     }
-    const bed=new THREE.Mesh(strip(180,8,(v,u)=>{const z=-24+v*RIVER_LENGTH;return[riverCenter(z)+(u-.5)*halfWidth(z)*2,-.34,z];}),new THREE.MeshStandardMaterial({color:'#3488a2',roughness:.95,side:THREE.DoubleSide}));
-    bed.name='blue-riverbed';bed.receiveShadow=true;this.root.add(bed);
+    // Extend beneath the opaque plunge pool so oblique views cannot expose the
+    // submerged bed's upstream edge at the surface junction.
+    const bed=new THREE.Mesh(strip(180,12,(v,u)=>{const z=-24+v*(GARDEN_BOUNDS.front+.8+24);return[riverCenter(z)+(u-.5)*halfWidth(z)*2,-.34,z];}),flowingWaterMaterial(this.time,this.night));
+    bed.name='blue-riverbed';this.root.add(bed);
   }
   buildRiver(){
-    const geometry=strip(180,12,(v,u)=>{const z=-24+v*RIVER_LENGTH;return[riverCenter(z)+(u-.5)*halfWidth(z)*2,.055,z];});
-    const material=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uTime:this.time,uNight:this.night},side:THREE.DoubleSide,
-      vertexShader:`uniform float uTime;varying vec2 vUv;varying vec3 vWorld;
-        void main(){vUv=uv;vec3 p=position;float bank=sin(uv.x*3.14159);p.y+=sin(p.z*2.1+p.x*1.4-uTime*1.7)*.009*bank;vWorld=(modelMatrix*vec4(p,1.0)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.0);}`,
-      fragmentShader:`uniform float uTime;uniform float uNight;varying vec2 vUv;varying vec3 vWorld;
-        float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-        float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
-        void main(){
-          float depth=pow(max(0.,sin(vUv.x*3.14159)),.65);
-          vec2 flow=vec2(vUv.x*7.0,vWorld.z*.48-uTime*.42);
-          float n=noise(flow+vec2(noise(flow*.55),0.0));
-          float ripple=sin(vWorld.z*5.6-uTime*3.0+sin(vWorld.x*2.4+uTime*.3)*1.3);
-          float fine=sin(vWorld.z*12.0-uTime*5.0+vWorld.x*7.0);
-          vec3 normal=normalize(vec3(.035*cos(vWorld.x*2.4),1.0,.055*ripple+.016*fine));
-          vec3 viewDirection=normalize(cameraPosition-vWorld);
-          float fresnel=pow(1.0-max(0.0,dot(normal,viewDirection)),3.0);
-          vec3 water=mix(vec3(.15,.59,.69),vec3(.025,.29,.46),depth);
-          water+=vec3(.035,.055,.045)*(n-.5);
-          water=mix(water,vec3(.55,.78,.94),fresnel*.4);
-          float glimmer=pow(max(0.0,ripple),18.0)*smoothstep(.52,.85,n)*.16;
-          float streak=pow(max(0.0,sin(vUv.x*105.0+noise(flow*.8)*4.0)),24.0)*smoothstep(.5,.85,n)*.065;
-          float shore=(1.0-smoothstep(.0,.14,min(vUv.x,1.0-vUv.x)))*(.025+.035*n);
-          water+=vec3(.68,.81,.72)*(glimmer+streak+shore);
-          water*=mix(vec3(1.),vec3(.32,.46,.66),uNight);
-          gl_FragColor=vec4(water,.28+fresnel*.32+(1.-depth)*.1);
-          #include <tonemapping_fragment>
-          #include <colorspace_fragment>
-        }`});
+    const geometry=strip(180,12,(v,u)=>{const z=RIVER_START_Z+v*RIVER_LENGTH;return[riverCenter(z)+(u-.5)*halfWidth(z)*2,.055,z];});
+    const material=flowingWaterMaterial(this.time,this.night,{opacity:.64,waves:true});
     this.water=new THREE.Mesh(geometry,material);this.water.name='connected-river';this.root.add(this.water);
     this.drift=[];const count=38;
     this.glints=new THREE.InstancedMesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:'#d8e9d4',transparent:true,opacity:.19,depthWrite:false,side:THREE.DoubleSide}),count);
@@ -72,36 +48,70 @@ export class RiverGarden{
     for(let i=0;i<count;i++)this.drift.push({offset:this.random()*RIVER_LENGTH,side:(this.random()-.5)*5.4,length:.24+this.random()*.6,speed:.65+this.random()*.35});
   }
   buildBanks(){
-    const random=this.random,dummy=this.dummy,stones=[];
+    const random=seededRandom(1864),dummy=this.dummy,stones=[],leaves=[],moss=[];
     this.banks=new THREE.Group();this.banks.name='natural-riverbanks';this.root.add(this.banks);
     for(const side of [-1,1]){
-      const bankGeo=strip(160,5,(v,u)=>{
-        const z=-24+v*68,edge=halfWidth(z)-.07,spread=1.45+.15*Math.sin(z*1.2);
-        return[riverCenter(z)+side*(edge+u*spread),.025+Math.sin(u*Math.PI)*(.12+.05*Math.sin(z*1.7)),z];
+      // A low, continuous shore fits inside the existing paving clearance.
+      const bankGeo=strip(200,12,(v,u)=>{
+        const z=-24+v*(GARDEN_BOUNDS.front+.4+24),inset=.24+.035*Math.sin(z*.81+side),spread=inset+.88;
+        const rise=THREE.MathUtils.smoothstep(u,0,inset/spread*1.34),settle=THREE.MathUtils.smoothstep(u,.48,1);
+        const contour=.007*Math.sin(z*.63+side)*Math.sin(u*Math.PI);
+        return[riverCenter(z)+side*(halfWidth(z)-inset+u*spread),-.1+.185*rise-.063*settle+contour,z];
       });
-      const bank=new THREE.Mesh(bankGeo,new THREE.MeshStandardMaterial({color:'#7f8c68',roughness:1,side:THREE.DoubleSide}));bank.receiveShadow=true;this.banks.add(bank);
-      for(let z=-23.7;z<43;z+=.58+random()*.47){
-        if(Math.abs(z-BRIDGE_Z)<3.2)continue;
-        const width=halfWidth(z),offset=random()*.7;
-        stones.push({x:riverCenter(z)+side*(width+.1+offset),z:z+(random()-.5)*.35,sx:.28+random()*.53,sy:.14+random()*.3,sz:.28+random()*.5});
-        if(random()>.55)stones.push({x:riverCenter(z)+side*(width-.12),z:z+.25,sx:.14+random()*.18,sy:.09+random()*.12,sz:.16+random()*.18});
+      const colors=[],wet=new THREE.Color('#667d77'),sand=new THREE.Color('#bbbaa0'),green=new THREE.Color('#83ac76');
+      const uv=bankGeo.attributes.uv,positions=bankGeo.attributes.position;
+      for(let i=0;i<uv.count;i++){
+        const u=uv.getX(i),z=positions.getZ(i),t=THREE.MathUtils.smoothstep(u,.35,.95);
+        const color=wet.clone().lerp(sand,THREE.MathUtils.smoothstep(u,.12,.4)).lerp(green,t);
+        color.multiplyScalar(1+.025*Math.sin(z*2.3+u*21));colors.push(color.r,color.g,color.b);
+      }
+      bankGeo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+      const bank=new THREE.Mesh(bankGeo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:1,side:THREE.DoubleSide}));
+      bank.name='soft-graded-shore';bank.receiveShadow=true;this.banks.add(bank);
+      // Small, separated pockets of river pebbles leave stretches of open bank.
+      for(let z=-23.4+(side+1)*.8;z<GARDEN_BOUNDS.front-1;z+=2.4+random()*2.1){
+        if(Math.abs(z-BRIDGE_Z)<3.7)continue;
+        const pocketZ=z+(random()-.5)*.5,count=4+Math.floor(random()*5);
+        for(let j=0;j<count;j++){
+          const pz=pocketZ+(random()-.5)*1.25,size=.07+random()*.15;
+          const offset=-.06+random()*.55;
+          stones.push({x:riverCenter(pz)+side*(halfWidth(pz)+offset),y:.055+random()*.01,z:pz,sx:size*(1+random()*.5),sy:size*.48,sz:size*(.8+random()*.5)});
+        }
+        if(random()>.55){
+          const pz=pocketZ-.25;
+          stones.push({x:riverCenter(pz)+side*(halfWidth(pz)+.39),y:.035,z:pz,sx:.32+random()*.1,sy:.15+random()*.035,sz:.27+random()*.13});
+        }
+        const plantZ=pocketZ+.55,plantX=riverCenter(plantZ)+side*(halfWidth(plantZ)+.65);
+        const leafCount=5+Math.floor(random()*4),plantSize=.8+random()*.4,turn=random()*Math.PI*2;
+        for(let j=0;j<leafCount;j++){
+          const angle=turn+j*Math.PI*2/leafCount+random()*.4;
+          leaves.push({x:plantX+(random()-.5)*.13,z:plantZ+(random()-.5)*.16,angle,width:(.075+random()*.035)*plantSize,height:(.7+random()*.45)*plantSize,length:(.26+random()*.16)*plantSize});
+        }
+        for(let j=0;j<3;j++){
+          const pz=pocketZ+(random()-.5)*1.3;
+          moss.push({x:riverCenter(pz)+side*(halfWidth(pz)+.65+random()*.1),z:pz,size:.12+random()*.13});
+        }
       }
     }
-    const geo=new THREE.IcosahedronGeometry(1,1),rockMaterial=new THREE.MeshStandardMaterial({color:'#a4a58e',roughness:1});
-    this.rocks=new THREE.InstancedMesh(geo,rockMaterial,stones.length);this.rocks.name='irregular-bank-stones';
-    stones.forEach((stone,i)=>{dummy.position.set(stone.x,.06,stone.z);dummy.rotation.set(random()*.4,random()*Math.PI*2,random()*.25);dummy.scale.set(stone.sx,stone.sy,stone.sz);dummy.updateMatrix();this.rocks.setMatrixAt(i,dummy.matrix);this.rocks.setColorAt(i,new THREE.Color().setHSL(.13+random()*.05,.10+random()*.1,.7+random()*.19));});
+    const geo=new THREE.SphereGeometry(1,12,8),p=geo.attributes.position;
+    for(let i=0;i<p.count;i++){
+      const x=p.getX(i),y=p.getY(i),z=p.getZ(i),r=1+.07*Math.sin(x*5+z*3)*Math.cos(y*4-z*2);
+      p.setXYZ(i,x*r,y*r,z*r);
+    }
+    geo.computeVertexNormals();
+    this.rocks=new THREE.InstancedMesh(geo,new THREE.MeshStandardMaterial({color:'#ffffff',roughness:.96}),stones.length);this.rocks.name='smooth-river-pebble-pockets';
+    const pebbleColors=['#a5aaa2','#b8b6a6','#8b9b98','#c6c3b1','#94a39f'];
+    stones.forEach((stone,i)=>{dummy.position.set(stone.x,stone.y,stone.z);dummy.rotation.set(random()*.15,random()*Math.PI*2,random()*.12);dummy.scale.set(stone.sx,stone.sy,stone.sz);dummy.updateMatrix();this.rocks.setMatrixAt(i,dummy.matrix);this.rocks.setColorAt(i,new THREE.Color(pebbleColors[i%pebbleColors.length]));});
     this.rocks.castShadow=true;this.rocks.receiveShadow=true;this.rocks.computeBoundingSphere();this.banks.add(this.rocks);
-    const reedGeometry=new THREE.BufferGeometry();reedGeometry.setAttribute('position',new THREE.Float32BufferAttribute([-.05,0,0,.05,0,0,-.045,.55,.025,.045,.55,.025,.13,1.05,.09],3));reedGeometry.setIndex([0,1,2,1,3,2,2,3,4]);reedGeometry.computeVertexNormals();
-    const reeds=new THREE.InstancedMesh(reedGeometry,new THREE.MeshStandardMaterial({color:'#788657',side:THREE.DoubleSide,roughness:1}),168);
-    let index=0;
-    for(let i=0;i<28;i++){
-      const z=-20+i*2.3;if(Math.abs(z-BRIDGE_Z)<4)continue;
-      const side=i%2?1:-1,x=riverCenter(z)+side*(halfWidth(z)+.85);
-      for(let j=0;j<6;j++){
-        dummy.position.set(x+(random()-.5)*.38,.04,z+(random()-.5)*.4);dummy.rotation.set(0,j*Math.PI/3+random(),(random()-.5)*.2);dummy.scale.set(1,.45+random()*.55,1);dummy.updateMatrix();reeds.setMatrixAt(index++,dummy.matrix);
-      }
-    }
-    reeds.count=index;reeds.name='riverside-reeds';reeds.computeBoundingSphere();this.banks.add(reeds);
+    // Rounded, cupped leaves form low rosettes rather than tall angular blades.
+    const leafGeo=strip(10,4,(v,u)=>[(u*2-1)*Math.sin(Math.PI*v),Math.sin(Math.PI*v)*.17+(1-Math.cos(v*Math.PI))*.035-Math.abs(u*2-1)*.025,v]);
+    const plants=new THREE.InstancedMesh(leafGeo,new THREE.MeshStandardMaterial({color:'#ffffff',side:THREE.DoubleSide,roughness:.88}),leaves.length);
+    const leafColors=['#668c68','#7c9e72','#91ac80'];
+    leaves.forEach((leaf,i)=>{dummy.position.set(leaf.x,.065,leaf.z);dummy.rotation.set(-.18,leaf.angle,0);dummy.scale.set(leaf.width,leaf.height,leaf.length);dummy.updateMatrix();plants.setMatrixAt(i,dummy.matrix);plants.setColorAt(i,new THREE.Color(leafColors[i%3]));});
+    plants.name='low-riverside-leaf-rosettes';plants.castShadow=true;plants.receiveShadow=true;plants.computeBoundingSphere();this.banks.add(plants);
+    const groundcover=new THREE.InstancedMesh(geo,new THREE.MeshStandardMaterial({color:'#729169',roughness:1}),moss.length);
+    moss.forEach((patch,i)=>{dummy.position.set(patch.x,.065,patch.z);dummy.rotation.set(0,random()*Math.PI,0);dummy.scale.set(patch.size,.045,patch.size*.75);dummy.updateMatrix();groundcover.setMatrixAt(i,dummy.matrix);});
+    groundcover.name='riverside-moss-cushions';groundcover.receiveShadow=true;groundcover.computeBoundingSphere();this.banks.add(groundcover);
   }
   buildBridge(){
     const center=riverCenter(BRIDGE_Z),root=new THREE.Group();root.name='arched-garden-bridge';root.position.set(center,0,BRIDGE_Z);this.root.add(root);this.bridge=root;
@@ -178,7 +188,7 @@ export class RiverGarden{
       f.g.position.set(x,-.14+Math.sin(time*.8+i)*.018,z);f.g.rotation.y=Math.atan2(-dz,dx);f.tail.rotation.z=Math.sin(time*4+i)*.35;
     });
     this.drift.forEach((d,i)=>{
-      const z=-24+(d.offset+time*d.speed)%RIVER_LENGTH,x=riverCenter(z)+d.side+Math.sin(z*.5+i)*.08;
+      const z=RIVER_START_Z+(d.offset+time*d.speed)%RIVER_LENGTH,x=riverCenter(z)+d.side+Math.sin(z*.5+i)*.08;
       this.dummy.position.set(x,.082,z);this.dummy.rotation.set(-Math.PI/2,0,Math.sin(z*.3)*.12);this.dummy.scale.set(.018,d.length,1);this.dummy.updateMatrix();this.glints.setMatrixAt(i,this.dummy.matrix);
     });this.glints.instanceMatrix.needsUpdate=true;
   }

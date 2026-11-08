@@ -15,12 +15,12 @@ test('terraced waterfall stays above its bed, joins the river and clears every g
   for(const tree of makeTreeLayout())assert.equal(mountainFootprint(tree.x,tree.z,tree.radius+1),false,`${tree.id} clears the mountain`);
 });
 
-test('the enclosure surrounds every tree crown and only opens at the finished entrance and stream portal',async()=>{
+test('the garden boundary keeps its portals and opens onto the rear coast',async()=>{
   const {Group}=await import('three'),{GardenBoundary,GARDEN_BOUNDS:b}=await import('../public/garden-boundary.mjs'),{TempleGarden}=await import('../public/garden.mjs');
   const boundary=new GardenBoundary(new Group(),{riverX:world.riverX}),garden=new TempleGarden(new Group(),{batterySaver:true});
   assert.equal(boundary.segments.length,8);assert.ok(boundary.root.getObjectByName('arched-stream-outlet'));
   const endpoints=new Map();for(const segment of boundary.segments)for(const point of segment){const key=point.join(',');endpoints.set(key,(endpoints.get(key)||0)+1);}
-  assert.equal([...endpoints.values()].filter(n=>n===1).length,4,'two portal openings; all other wall ends meet');
+  assert.equal([...endpoints.values()].filter(n=>n===1).length,6,'gate, stream portal and the new open coast');
   assert.ok([...endpoints.values()].every(n=>n<=2));
   assert.equal(garden.crowns.isInstancedMesh,true);assert.equal(garden.crowns.count,21*24);
   for(const c of garden.crownTransforms){assert.ok(c.position.x-c.radius>b.left+.6);assert.ok(c.position.x+c.radius<b.right-.6);assert.ok(c.position.z-c.radius>b.rear+.6);assert.ok(c.position.z+c.radius<b.front-.6);}

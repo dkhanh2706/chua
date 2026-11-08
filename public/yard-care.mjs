@@ -3,6 +3,7 @@ import {makeLeafGeometry} from './garden.mjs';
 import {seededRandom} from './garden-layout.mjs';
 import {RIGHT_HAND,BROOM_GRIP} from './broom-motion.mjs';
 import {addNightLight,addLightPool} from './night-lights.mjs';
+import {ENTRANCE_LIGHTS} from './entrance-layout.mjs';
 
 const UP=new THREE.Vector3(0,1,0);
 function add(parent,geometry,material,x=0,y=0,z=0,sx=1,sy=1,sz=1){const m=new THREE.Mesh(geometry,material);m.position.set(x,y,z);m.scale.set(sx,sy,sz);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
@@ -35,7 +36,7 @@ export class YardCare{
     this.lights=[];
     const metal=standard('#879394',{metalness:.65,roughness:.4}),dark=standard('#586162',{metalness:.45}),concrete=standard('#a9ab9c');
     const lens=standard('#f5e6ba',{emissive:'#ffdea0',emissiveIntensity:0});lens.userData.nightEmission=2.4;
-    for(const [x,z]of [[-16,0],[16,0],[-16,20],[16,20],[-10,27],[10,27]]){
+    for(const {x,z} of ENTRANCE_LIGHTS){
       const pole=new THREE.Group();pole.name='vietnam-street-light';pole.position.set(x,0,z);pole.rotation.y=x>0?Math.PI:0;this.root.add(pole);this.lights.push(pole);
       add(pole,new THREE.BoxGeometry(.8,.25,.8),concrete,0,.125,0);
       add(pole,new THREE.CylinderGeometry(.3,.3,.08,16),metal,0,.29,0);

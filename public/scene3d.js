@@ -10,11 +10,12 @@ import {broomStrike,applyBroomPose} from './broom-motion.mjs';
 import {DayNightCycle} from './night-lights.mjs';
 import {IncenseSmoke} from './incense-smoke.mjs';
 import {GardenBoundary} from './garden-boundary.mjs';
-import {buildRoofFrame} from './roof-frame.mjs';
+import {buildEntranceGate} from './entrance-gate.mjs';
 import {buildCircularRoofs} from './circular-temple.mjs';
 import {constrainHallCamera} from './hall-camera.mjs';
 import {CameraObstacles} from './camera-obstacles.mjs';
 import {MoonGarden} from './moon-garden.mjs';
+import {Seaside} from './seaside.mjs';
 
 const { WORLD, URN, riverX, groundHeight } = window;
 const TAU=Math.PI*2;
@@ -89,8 +90,8 @@ export class TempleView {
     this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});this.renderer.setPixelRatio(this.pixelRatioForViewport());this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.autoUpdate=!this.mobile;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.12;
     if(typeof ResizeObserver!=='undefined'){this.resizeObserver=new ResizeObserver(([entry])=>{this.canvasSize=entry.contentRect;});this.resizeObserver.observe(canvas);}
     this.studio=new AvatarStudio(this.renderer);
-    this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#a4afa1');this.scene.fog=new THREE.Fog('#a4afa1',95,210);
-    this.camera=new THREE.PerspectiveCamera(47,1,.2,350);this.camera.position.set(0,66,68);this.camera.lookAt(this.look);
+    this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#a4afa1');this.scene.fog=new THREE.Fog('#a4afa1',250,1100);
+    this.camera=new THREE.PerspectiveCamera(47,1,.2,2800);this.camera.position.set(0,66,68);this.camera.lookAt(this.look);
     this.scene.add(this.camera);
     this.daylight=new THREE.HemisphereLight('#ffe8c7','#65745c',1.8);this.scene.add(this.daylight);const sun=new THREE.DirectionalLight('#ffd29b',2.2);sun.position.set(-35,65,25);sun.castShadow=true;sun.shadow.mapSize.set(this.mobile?1024:2048,this.mobile?1024:2048);sun.shadow.camera.left=-65;sun.shadow.camera.right=65;sun.shadow.camera.top=65;sun.shadow.camera.bottom=-65;sun.shadow.normalBias=.06;sun.shadow.bias=-.0003;sun.shadow.camera.far=150;this.sunlight=sun;this.scene.add(sun);this.scene.add(sun.target);
     this.worldRoot=group(this.scene);this.cycle=new DayNightCycle(this);this.worldBuilt=false;this.canvas.dataset.renderer='webgl';this.canvas.dataset.cameraMode=this.mode;this.canvas.dataset.qualityMode=this.quality;
@@ -101,37 +102,22 @@ export class TempleView {
   }
   buildWorld(){
     const s=this.worldRoot;let seed=917;const random=()=>{seed=seed*16807%2147483647;return(seed-1)/2147483646;};
-    box(s,0,-1.1,-17,113.2,1.4,123.2,'#83ac76');
+    box(s,0,-1.1,.8,113.2,1.4,87.6,'#83ac76');
     const grass=[];for(let i=0;i<700;i++){const x=random()*106-53,z=random()*78-39;if(Math.abs(x)<46&&z>-22&&z<30)continue;grass.push({p:[x,.012,z],s:[.12+random()*.22,.03,.14+random()*.35],r:[0,random()*TAU,0]});}instances(s,boxGeo,mat('#acb78b'),grass);
-    // Forested mountain silhouettes and a warm sun beyond the garden.
-    for(let i=0;i<14;i++){const mountain=mesh(s,new THREE.ConeGeometry(13+random()*14,20+random()*25,6),mat(i%2?'#9fb29b':'#afbfaa'),(i-7)*17,-1,-118-random()*24);mountain.name='distant-mountain-backdrop';mountain.rotation.y=random();mountain.castShadow=false;}
-    const sun=ball(s,-46,48,-105,7,7,3,'#fff1c9');sun.material=new THREE.MeshBasicMaterial({color:'#fff1c9'});this.skyDisc=sun;
-    const starPositions=[];for(let i=0;i<160;i++){const angle=random()*TAU,radius=110+random()*25;starPositions.push(Math.sin(angle)*radius,45+random()*65,Math.cos(angle)*radius);}
-    const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));this.stars=new THREE.Points(starGeometry,new THREE.PointsMaterial({color:'#dceaff',size:.23,transparent:true,opacity:0,depthWrite:false,fog:false}));s.add(this.stars);
+    // Keep the distant sea horizon clear; the waterfall cliff frames its east side.
+    const sun=ball(s,-460,480,-1050,70,70,30,'#fff1c9');sun.material=new THREE.MeshBasicMaterial({color:'#fff1c9',fog:false});sun.castShadow=false;sun.userData.distanceScale=10;this.skyDisc=sun;
+    const starPositions=[];for(let i=0;i<160;i++){const angle=random()*TAU,radius=1100+random()*250;starPositions.push(Math.sin(angle)*radius,450+random()*650,Math.cos(angle)*radius);}
+    const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starPositions,3));this.stars=new THREE.Points(starGeometry,new THREE.PointsMaterial({color:'#dceaff',size:2.3,transparent:true,opacity:0,depthWrite:false,fog:false}));s.add(this.stars);
 
     this.landscape=new GardenLandscape(s,this.cycle.uniform);
+    this.coast=new Seaside(s,this.cycle.uniform);
     this.pond=new LotusPond(s,this.cycle.uniform);
     this.buildTemple();this.buildUrn();
-    this.boundary=new GardenBoundary(s);
+    this.boundary=new GardenBoundary(s,{wallSegments:window.gardenWallSegments()});
     this.moonGarden=new MoonGarden(s,window.WATCH_BENCHES);
-    const entryTiles=[];for(let row=0;row<7;row++)for(let column=0;column<8;column++)entryTiles.push({p:[-7+column*2,-.045,31+row*2],s:[1.94,.12,1.94]});
+    const entryTiles=[];for(let row=0;row<10;row++)for(let column=0;column<11;column++)entryTiles.push({p:[-10+column*2,-.045,25+row*2],s:[1.94,.12,1.94]});
     instances(s,boxGeo,mat('#d2c8ae'),entryTiles).name='finished-entrance-path';
-    // The entrance gate frames the first steps into the courtyard.
-    for(const x of [-8,8]){
-      // Chân cột cổng: đế vuông rồi đế tròn
-      box(s,x,.28,30.7,1.5,.56,1.5,'#c7c1a0');
-      cylinder(s,x,.60,30.7,.58,.58,.12,'#b8b298',16);
-      // Thân cột liên tục
-      cylinder(s,x,3.5,30.7,.38,.44,7,'#865b3d');
-      // Mũ cột: đệm tròn + đệm vuông
-      cylinder(s,x,7.12,30.7,.52,.52,.18,'#9a6838',16);
-      box(s,x,7.24,30.7,.92,.12,.92,'#9a7850');
-    }
-    // Xà ngang nối đầu hai cột cổng
-    beam(s,[-8,7.3,30.7],[8,7.3,30.7],.2,'#7a4a28');
-    // Mảng tường cổng bên trên xà
-    box(s,0,7.3,30.7,16.4,.06,1.2,'#c8bfa5');
-    this.gateRoof=roof(s,0,30.7,21,7,7.3,2.9,'#526d58');buildRoofFrame(this.gateRoof,{width:21,depth:7,base:7.3,height:2.9,columnTop:7.38,columns:[{x:-8,z:0},{x:8,z:0}],plateWidth:16.8});this.gateRoof.traverse(o=>{if(o.material)o.material=o.material.clone();});
+    this.entrance=buildEntranceGate(s,{roof});this.gateRoof=this.entrance.roofs;
     this.garden=new TempleGarden(s,{batterySaver:this.mobile&&this.quality==='balanced',groundHeight});
     this.yardCare=new YardCare(s,this.garden,groundHeight);
     this.cycle.collect();
@@ -198,6 +184,8 @@ export class TempleView {
     const outdoor=this.moonGarden&&this.ray.intersectObject(this.moonGarden.seats,true).find(hit=>hit.distance<=floorDistance+.05);
     const sofa=outdoor&&(!indoor||outdoor.distance<indoor.distance)?outdoor:indoor;
     if(sofa){const x=sofa.point.x*10+500,y=sofa.point.z*10+350,seat=window.sofaSeatAt(x,y);if(seat)return{x:seat.x,y:seat.y,sofaSeatId:seat.id};}
+    const beach=this.coast&&this.ray.intersectObject(this.coast.sand,false)[0];
+    if(beach&&beach.distance<=floorDistance+.05&&window.onCoast(beach.point.x*10+500,beach.point.z*10+350))return{x:beach.point.x*10+500,y:beach.point.z*10+350};
     const hit=new THREE.Vector3();if(!this.ray.ray.intersectPlane(this.plane,hit))return null;let x=hit.x*10+500,y=hit.z*10+350;const height=groundHeight(x,y);if(height){this.ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-height),hit);x=hit.x*10+500;y=hit.z*10+350;}return{x,y};
   }
   project(x,y){const v=position(x,y).add(new THREE.Vector3(0,.1,0)).project(this.camera),rect=this.canvas.getBoundingClientRect();return{x:rect.left+(v.x+1)*rect.width/2,y:rect.top+(1-v.y)*rect.height/2};}
@@ -228,7 +216,7 @@ export class TempleView {
       if(p.id===myId&&model.motionOutput.stepCount>(model.playedSteps||0)){
         const bridge=p.y>475&&p.y<535&&Math.abs(p.x-riverX(p.y))<62;
         const stone=p.x>350&&p.x<650||p.y<293&&p.x>330&&p.x<670;
-        this.canvas.dispatchEvent(new CustomEvent('avatar-step',{detail:{surface:bridge?'wood':stone?'stone':'grass'}}));
+        this.canvas.dispatchEvent(new CustomEvent('avatar-step',{detail:{surface:window.onCoast(p.x,p.y)?'sand':bridge?'wood':stone?'stone':'grass'}}));
       }
       model.playedSteps=model.motionOutput.stepCount;
       model.label.position.y=p.action==='sit'?2.75:p.action==='bow'?2.3:3.1;
@@ -285,7 +273,7 @@ export class TempleView {
     const fadeRoof=inside&&this.camera.position.y>HALL_CEILING+.25;
     this.roofs.forEach(g=>g.traverse(o=>{if(o.material){const baseOpacity=o.userData.roofOpacity,transparent=o.isSprite||fadeRoof||baseOpacity<.99||o.material.opacity<.99;if(o.material.transparent!==transparent){o.material.transparent=transparent;o.material.needsUpdate=true;}o.material.opacity=THREE.MathUtils.damp(o.material.opacity,baseOpacity*(fadeRoof?.025:1),9,dt);o.material.depthWrite=!fadeRoof;o.castShadow=!fadeRoof;if(o.isSprite)o.visible=!fadeRoof;}}));
     // Keep the local player visible when the gate falls between them and camera.
-    const gateOccludes=!!me&&me.y>535&&Math.cos(this.yaw)>.15;
+    const gateOccludes=!!me&&pos.z>this.entrance.root.position.z-12&&Math.cos(this.yaw)>.15;
     this.gateRoof.traverse(o=>{if(o.material){o.material.opacity=THREE.MathUtils.damp(o.material.opacity,gateOccludes?.1:1,10,dt);const transparent=gateOccludes||o.material.opacity<.99;if(o.material.transparent!==transparent){o.material.transparent=transparent;o.material.needsUpdate=true;}o.material.depthWrite=!gateOccludes;o.castShadow=!gateOccludes;}});
     this.canvas.dataset.location=inside?'hall':'garden';
     // ── Animate thác nước ────────────────────────────────────────────────
@@ -295,7 +283,7 @@ export class TempleView {
     this.skyDisc.visible=!showActive;
     this.landscape.update(time);
     this.pond.update(time);
-    this.garden.update(time);
+    this.garden.update(time);this.coast.update(time);
     this.yardCare.update(time,players,this.models,myId,false);
     this.destination.visible=!!target;if(target){const pos=position(target.x,target.y);this.destination.position.copy(pos).add(new THREE.Vector3(0,.18,0));this.destination.scale.setScalar(1+Math.sin(time*4)*.12);}
     this.updateShadows(pos,time,players);

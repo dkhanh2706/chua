@@ -21,7 +21,7 @@ for(const mobile of [false,true])test(`take a broom, sweep shared leaves and ear
     await page.goto('/');await page.locator('#next-button').click();await page.locator('#name').fill('Quet san');await page.locator('#join-button').click();
     await page.evaluate(async()=>{const {TempleView}=await import('/scene3d.js');await new Promise(resolve=>{const original=TempleView.prototype.render;TempleView.prototype.render=function(...args){original.apply(this,args);TempleView.prototype.render=original;window.yardQA=this;resolve();};});});
     await expect(page.locator('.blessing-panel')).toBeVisible();await expect(page.locator('#blessing-score')).toHaveText('0');await expect(page.locator('.yard-tools')).not.toBeVisible();
-    const models=await page.evaluate(()=>({lamps:window.yardQA.yardCare.lights.length,racks:window.yardQA.yardCare.racks.length,leaves:window.yardQA.yardCare.patches.size}));expect(models).toEqual({lamps:6,racks:3,leaves:10});
+    const models=await page.evaluate(()=>({lamps:window.yardQA.yardCare.lights.length,racks:window.yardQA.yardCare.racks.length,leaves:window.yardQA.yardCare.patches.size}));expect(models).toEqual({lamps:4,racks:3,leaves:10});
     const stream=await page.evaluate(()=>Array.from(window.yardQA.yardCare.leafStream.instanceMatrix.array));await page.waitForTimeout(200);
     expect(await page.evaluate(()=>window.yardQA.yardCare.leafStream.count)).toBe(60);expect(await page.evaluate(()=>Array.from(window.yardQA.yardCare.leafStream.instanceMatrix.array))).not.toEqual(stream);
     await moveUntil(-1,'#broom-pickup');await expect(page.locator('#broom-pickup')).toBeVisible();

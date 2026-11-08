@@ -70,7 +70,7 @@ window.TempleSound = class {
     if(!this.ctx||!this.enabled)return;const c=this.ctx,t=c.currentTime;
     const buffer=c.createBuffer(1,Math.floor(c.sampleRate*.065),c.sampleRate),data=buffer.getChannelData(0);
     for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*Math.exp(-i/(data.length*.22));
-    const source=c.createBufferSource(),filter=c.createBiquadFilter(),gain=c.createGain();source.buffer=buffer;filter.type='lowpass';filter.frequency.value=surface==='wood'?500:surface==='grass'?1400:950;
-    gain.gain.setValueAtTime(surface==='grass'?.035:.055,t);gain.gain.exponentialRampToValueAtTime(.001,t+.065);source.connect(filter);filter.connect(gain);gain.connect(this.master);source.start(t);source.stop(t+.07);
+    const source=c.createBufferSource(),filter=c.createBiquadFilter(),gain=c.createGain();source.buffer=buffer;filter.type='lowpass';filter.frequency.value=surface==='sand'?750:surface==='wood'?500:surface==='grass'?1400:950;
+    gain.gain.setValueAtTime(surface==='sand'?.027:surface==='grass'?.035:.055,t);gain.gain.exponentialRampToValueAtTime(.001,t+.065);source.connect(filter);filter.connect(gain);gain.connect(this.master);source.start(t);source.stop(t+.07);
   }
 };

@@ -43,7 +43,7 @@ export class DayNightCycle{
     for(const light of this.lights){light.visible=n>.005;light.intensity=light.userData.nightLight*n;}
     for(const glow of this.glows){glow.visible=n>.005;glow.material.opacity=glow.userData.nightGlow*n;}
     for(const material of this.emitters)material.emissiveIntensity=material.userData.nightEmission*n;
-    if(v.skyDisc){v.skyDisc.material.color.copy(this.daySun).lerp(this.moonColor,n);v.skyDisc.scale.set(7-3*n,7-3*n,3-1.5*n);}
+    if(v.skyDisc){const scale=v.skyDisc.userData.distanceScale||1;v.skyDisc.material.color.copy(this.daySun).lerp(this.moonColor,n);v.skyDisc.scale.set((7-3*n)*scale,(7-3*n)*scale,(3-1.5*n)*scale);}
     if(v.stars)v.stars.material.opacity=n*.85;
   }
 }

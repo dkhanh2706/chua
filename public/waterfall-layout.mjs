@@ -1,4 +1,6 @@
 export const streamCenter=z=>(784+Math.sin((z*10+350)/130)*36-500)/10;
+export const RIVER_START_Z=-22.8;
+export const riverHalfWidth=z=>3.6+Math.exp(-(((z+22)/3.6)**2));
 const smooth=t=>{t=Math.max(0,Math.min(1,t));return t*t*(3-2*t);};
 // Three short cascades separated by calm rock pools, ending in the existing river.
 export const FALL_STATIONS=[[-60,21.8],[-55,21.4],[-52.5,15.2],[-47,14.7],[-44.5,9],[-37,8.5],[-33.5,.055],[-22.8,.055]];
@@ -14,7 +16,7 @@ export function cascadeCenter(z){
   const join=smooth((z+31)/7);return x*(1-join)+streamCenter(z)*join;
 }
 export function cascadeHalfWidth(z){
-  if(z>-34)return 1.65+2.85*smooth((z+34)/6);
+  if(z>-34){const join=smooth((z+28)/5.2);return (1.65+2.85*smooth((z+34)/6))*(1-join)+riverHalfWidth(z)*join;}
   return 1.25+.65*Math.sin(smooth((z+60)/26)*Math.PI)**2;
 }
 export function mountainFootprint(x,z,padding=0){

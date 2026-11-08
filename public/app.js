@@ -1,6 +1,7 @@
 import { TempleView,drawPortrait } from './scene.js';
 import { Customizer } from './customizer.mjs';
 import { easeVelocity } from './locomotion.mjs';
+import {findWalkingRoute} from './navigation.mjs';
 (() => {
   const $=id=>document.getElementById(id);
   const sound=new TempleSound();
@@ -259,19 +260,12 @@ import { easeVelocity } from './locomotion.mjs';
     if(hit.sofaSeatId){const requested=window.SOFA_SEATS.find(s=>s.id===hit.sofaSeatId);sofaSeat=availableSofaSeats().filter(s=>s.sofaId===requested.sofaId).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0];if(!sofaSeat){toast('Ghế này đã đủ chỗ. Bạn chọn hàng ghế khác nhé.');return;}x=sofaSeat.approachX;y=sofaSeat.approachY;}
     const lotus=window.lotusAt(x,y);if(lotus){x=lotus.x;y=lotus.y;}
     if(Math.hypot(x-URN.x,y-URN.y)<38){x=URN.x;y=URN.y+53;}
-    if(!validPosition(x,y)){toast('Đi trên sân và qua cầu để sang bờ suối nhé.');return;}
+    if(!validPosition(x,y)){toast(window.onCoast(x,y)?'Bạn đi trên bãi cát để ngắm biển nhé.':'Đi trên sân và qua cầu để sang bờ suối nhé.');return;}
     const me=players.get(myId),exit=window.SOFA_SEATS.find(s=>s.id===me.sofaSeatId);const route=findRoute(exit?.approachX??me.x,exit?.approachY??me.y,x,y);if(!route){toast('Chỗ đó hơi xa lối đi. Bạn thử chạm gần hơn nhé.');return;}target={x,y,route,meditate:!!lotus,sofaSeatId:sofaSeat?.id};clearMovement();$('canvas').focus({preventScroll:true});
   }
   // A small navigation grid routes touches around the pond, stream and incense burner.
   function findRoute(sx,sy,ex,ey){
-    const size=20,cols=50,rows=35,idx=(x,y)=>y*cols+x;
-    const canCross=(ax,ay,bx,by)=>[0,.25,.5,.75,1].every(t=>validPosition(ax+(bx-ax)*t,ay+(by-ay)*t));
-    const start={x:Math.floor(sx/size),y:Math.floor(sy/size)},end={x:Math.floor(ex/size),y:Math.floor(ey/size)};
-    const queue=[start],came=new Map([[idx(start.x,start.y),null]]);let head=0,found=false;
-    while(head<queue.length){const p=queue[head++];if(p.x===end.x&&p.y===end.y){found=true;break;}
-      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,y=p.y+dy,key=idx(x,y),first=p===start;if(x<0||y<0||x>=cols||y>=rows||came.has(key)||!canCross(first?sx:p.x*size+size/2,first?sy:p.y*size+size/2,x*size+size/2,y*size+size/2))continue;came.set(key,p);queue.push({x,y});}}
-    if(!found)return null;
-    const route=[{x:ex,y:ey}];let p=end;while(p&&!(p.x===start.x&&p.y===start.y)){route.push({x:p.x*size+size/2,y:p.y*size+size/2});p=came.get(idx(p.x,p.y));}return route.reverse();
+    return findWalkingRoute(sx,sy,ex,ey,validPosition,window.WALK_BOUNDS);
   }
   function sendMove(force=false){const me=players.get(myId);if(!active||!me)return;const now=performance.now();if(!force&&now-lastSent<50)return;if(lastPosition&&lastPosition.x===me.x&&lastPosition.y===me.y)return;socket.emit('move',{x:me.x,y:me.y});lastPosition={x:me.x,y:me.y};lastSent=now;}
   function frame(now){
