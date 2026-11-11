@@ -3,7 +3,8 @@ const assert = require('node:assert/strict');
 const { io } = require('socket.io-client');
 const { createTemple } = require('../server');
 const { validPosition,canWalkBetween,groundHeight,riverX,bridgeHeight,LOTUS_SEATS,lotusAt,lotusHeight,SOFA_LAYOUT,SOFA_SEATS,HALL_COLUMNS } = require('../public/world');
-const {BROOM_RACKS,LEAF_PATCHES,LEAF_RESPAWN,SWEEP_DURATION,HIT_RANGE,HIT_DURATION,HIT_COOLDOWN}=require('../public/sweeping');
+const {BROOM_RACKS,LEAF_PATCHES,LEAF_RESPAWN,SWEEP_DURATION,HIT_RANGE,HIT_DURATION,HIT_COOLDOWN,KNOCKDOWN_DURATION}=require('../public/sweeping');
+const {INCENSE_SHOP,INCENSE_PACKS}=require('../public/incense-shop');
 
 const event = (socket, name) => new Promise((resolve, reject) => {
   const timeout = setTimeout(() => { socket.off(name, handler); reject(new Error(`Timed out: ${name}`)); }, 3000);
@@ -65,7 +66,12 @@ test('free broom swings only penalise a front contact and let other players dodg
   let hit=await swing(-Math.PI/2);assert.equal(hit.targetId,null);assert.equal(p.blessings,0);
   await reject('busy');clock+=HIT_DURATION+1;await reject('cooldown');clock+=HIT_COOLDOWN;
   hit=await swing(0);assert.equal(hit.targetId,null);assert.equal(p.blessings,0);clock+=HIT_COOLDOWN;
-  hit=await swing(Math.PI/2);assert.deepEqual(hit,{id:a.id,targetId:b.id,blessings:-1});assert.equal(q.blessings,0);clock+=HIT_COOLDOWN;
+  hit=await swing(Math.PI/2);assert.deepEqual({...hit,heading:0},{id:a.id,targetId:b.id,blessings:-1,heading:0,knockdown:KNOCKDOWN_DURATION});assert.ok(Math.abs(hit.heading-Math.PI/2)<1e-9);assert.equal(q.blessings,0);
+  // Knocked down: no walking, sitting or swinging back until the visitor is up again.
+  q.hasBroom=true;const fallen={x:q.x,y:q.y};b.emit('move',{x:q.x+5,y:q.y});b.emit('action','sit');
+  let locked=event(b,'hit-error');b.emit('broom-hit',{heading:0});assert.equal(await locked,'busy');assert.deepEqual({x:q.x,y:q.y,action:q.action},{...fallen,action:'stand'});
+  clock+=HIT_COOLDOWN;hit=await swing(Math.PI/2);assert.equal(hit.targetId,null,'a visitor on the ground cannot be struck again');assert.equal(hit.knockdown,0);assert.equal(p.blessings,-1);
+  clock+=HIT_COOLDOWN;locked=event(b,'broom-swing');b.emit('broom-hit',{heading:0});assert.equal((await locked).id,b.id,'back on their feet');await event(b,'broom-hit');q.hasBroom=false;clock+=HIT_COOLDOWN;
   q.x=p.x+HIT_RANGE+1;hit=await swing(Math.PI/2);assert.equal(hit.targetId,null);assert.equal(p.blessings,-1);clock+=HIT_COOLDOWN;
   q.x=p.x+25;hit=await swing(Math.PI/2,()=>{q.y+=100;});assert.equal(hit.targetId,null);assert.equal(p.blessings,-1);clock+=HIT_COOLDOWN;
   Object.assign(p,{x:296,y:230});Object.assign(q,{x:320,y:230});hit=await swing(Math.PI/2);assert.equal(hit.targetId,null);assert.equal(p.blessings,-1);clock+=HIT_COOLDOWN;
@@ -146,12 +152,13 @@ test('input validation, Unicode name limit, optional password, and unjoined even
   }
   const error = event(s, 'join-error');s.emit('join', { name: 'An', character: 0, password: 'wrong' });assert.equal(await error, 'bad-password');
   const result = await f.join(s, { name: '  <An>   Nhiên Rất Dài  ', password: 'lotus', color: 'url(evil)' });
-  assert.equal(result.players[0].name, 'An Nhiên Rất D');assert.equal(result.players[0].color, '#87966f');
+  assert.equal(result.players[0].name, 'An Nhiên Rất D');assert.equal(result.players[0].color, require('../public/avatar-config').defaults().colors.shirt);
   s.emit('action', 'invalid');s.emit('move', { x: null, y: Infinity });
   await new Promise(resolve => setTimeout(resolve, 70));assert.equal(f.players.get(s.id).action, 'stand');
 });
 test('movement, incense proximity, sequential rituals, limits, late join, expiry and empty cleanup', async t => {
   let clock = 100000;const f = await fixture(t, { now: () => clock, incenseTTL: 300000 });const s = await f.client();await f.join(s);
+  f.players.get(s.id).incenseSticks=3;
   let error = event(s, 'incense-error');s.emit('plant-incense');assert.equal(await error, 'far');
   // Traverse the courtyard using valid, server-checked steps.
   for(let y=595;y>=235;y-=10){clock+=100;s.emit('move',{x:450,y});await new Promise(resolve=>setTimeout(resolve,2));}
@@ -170,7 +177,7 @@ test('movement, incense proximity, sequential rituals, limits, late join, expiry
 
 test('incense spam creates one stick per completed ritual and cannot cancel the animation lock',async t=>{
   let clock=100000;const f=await fixture(t,{now:()=>clock}),s=await f.client();await f.join(s);
-  const p=f.players.get(s.id);Object.assign(p,{x:500,y:235});
+  const p=f.players.get(s.id);Object.assign(p,{x:500,y:235,incenseSticks:3});
   let added=event(s,'incense-added');for(let i=0;i<30;i++)s.emit('plant-incense');await added;
   await new Promise(resolve=>setTimeout(resolve,50));assert.equal(f.incense.size,1);
   s.emit('action','stand');s.emit('move',{x:510,y:235});await new Promise(resolve=>setTimeout(resolve,40));assert.equal(p.action,'bow');assert.equal(p.x,500);
@@ -178,6 +185,61 @@ test('incense spam creates one stick per completed ritual and cannot cancel the 
   clock+=1;added=event(s,'incense-added');for(let i=0;i<30;i++)s.emit('plant-incense');await added;
   await new Promise(resolve=>setTimeout(resolve,40));assert.equal(f.incense.size,2);
   clock+=1500;p.sweepUntil=clock+900;error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'busy');assert.equal(f.incense.size,2);
+});
+
+test('new visitors need purchased incense and cannot forge balance, prices or stock',async t=>{
+  const f=await fixture(t),s=await f.client();const joined=await f.join(s,{incenseSticks:999,blessings:999});
+  const p=f.players.get(s.id);assert.equal(joined.players[0].incenseSticks,0);assert.equal(p.blessings,0);
+  Object.assign(p,{x:500,y:235});let error=event(s,'incense-error');s.emit('plant-incense',{incenseSticks:99});assert.equal(await error,'no-incense');assert.equal(f.incense.size,0);
+  Object.assign(p,{x:INCENSE_SHOP.approachX,y:INCENSE_SHOP.approachY});
+  error=event(s,'incense-shop-error');s.emit('buy-incense',{packId:'bundle',cost:0,sticks:999,blessings:999});assert.equal(await error,'blessings');assert.equal(p.incenseSticks,0);
+  for(const input of [null,{},'single',{packId:'toString'},{packId:'single',cost:-1}]){
+    error=event(s,'incense-shop-error');s.emit('buy-incense',input);assert.equal(await error,input?.packId==='single'?'blessings':'invalid');
+  }
+  p.blessings=5;p.x=450;p.y=605;error=event(s,'incense-shop-error');s.emit('buy-incense',{packId:'bundle'});assert.equal(await error,'far');
+  Object.assign(p,{x:INCENSE_SHOP.approachX,y:INCENSE_SHOP.approachY,action:'sit'});error=event(s,'incense-shop-error');s.emit('buy-incense',{packId:'bundle'});assert.equal(await error,'busy');
+  p.action='stand';p.sweepUntil=Date.now()+1000;error=event(s,'incense-shop-error');s.emit('buy-incense',{packId:'bundle'});assert.equal(await error,'busy');
+  assert.equal(p.blessings,5);assert.equal(p.incenseSticks,0);
+});
+
+test('sweeping earns the exact prices of all incense packs; purchases and consumption sync for late visitors',async t=>{
+  assert.deepEqual(INCENSE_PACKS.map(({id,sticks,cost})=>[id,sticks,cost]),[['single',1,1],['triple',3,3],['bundle',6,5]]);
+  let clock=100000;const f=await fixture(t,{now:()=>clock}),s=await f.client(),other=await f.client();await f.join(s);await f.join(other);
+  const p=f.players.get(s.id),rack=BROOM_RACKS[0],patch=LEAF_PATCHES[0];
+  Object.assign(p,{x:rack.x,y:rack.y});let changed=event(s,'broom-changed');s.emit('broom',{rackId:rack.id,take:true});await changed;
+  Object.assign(p,{x:patch.x,y:patch.y});
+  for(let i=0;i<9;i++){clock+=LEAF_RESPAWN;changed=event(s,'swept');s.emit('sweep',{patchId:patch.id});await changed;}
+  assert.equal(p.blessings,9);clock+=SWEEP_DURATION;
+  Object.assign(p,{x:INCENSE_SHOP.approachX,y:INCENSE_SHOP.approachY});
+  let stock=0,balance=9;
+  for(const pack of INCENSE_PACKS){
+    changed=event(s,'incense-purchased');const seen=event(other,'incense-purchased');
+    s.emit('buy-incense',{packId:pack.id,cost:0,sticks:999});const purchase=await changed;assert.deepEqual(await seen,purchase);
+    stock+=pack.sticks;balance-=pack.cost;assert.equal(purchase.incenseSticks,stock);assert.equal(purchase.blessings,balance);assert.equal(purchase.cost,pack.cost);
+  }
+  assert.equal(p.incenseSticks,10);assert.equal(p.blessings,0);
+  Object.assign(p,{x:500,y:235});changed=event(s,'incense-added');s.emit('plant-incense');const planted=await changed;assert.equal(planted.remainingSticks,9);assert.equal(p.incenseSticks,9);
+  let error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'busy');assert.equal(p.incenseSticks,9);
+  clock+=1500;for(let i=0;i<2;i++){changed=event(s,'incense-added');s.emit('plant-incense');await changed;clock+=1500;}
+  error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'limit');assert.equal(p.incenseSticks,7);
+  const late=await f.client(),snapshot=await f.join(late);assert.equal(snapshot.players.find(player=>player.id===p.id).incenseSticks,7);
+});
+
+test('rapid purchases cannot overspend and a final stick is consumed only once',async t=>{
+  let clock=100000;const f=await fixture(t,{now:()=>clock}),s=await f.client();await f.join(s);const p=f.players.get(s.id);
+  Object.assign(p,{x:INCENSE_SHOP.approachX,y:INCENSE_SHOP.approachY,blessings:5});
+  let bought=0;s.on('incense-purchased',()=>bought++);const purchased=event(s,'incense-purchased');
+  for(let i=0;i<30;i++)s.emit('buy-incense',{packId:'bundle'});await purchased;await new Promise(resolve=>setTimeout(resolve,60));
+  assert.equal(bought,1);assert.equal(p.blessings,0);assert.equal(p.incenseSticks,6);
+  Object.assign(p,{x:500,y:235,incenseSticks:1});const planted=event(s,'incense-added');for(let i=0;i<30;i++)s.emit('plant-incense');await planted;await new Promise(resolve=>setTimeout(resolve,60));
+  assert.equal(p.incenseSticks,0);assert.equal(f.incense.size,1);clock+=1500;const error=event(s,'incense-error');s.emit('plant-incense');assert.equal(await error,'no-incense');
+  assert.equal(p.incenseSticks,0);assert.equal(f.incense.size,1);
+  assert.equal(validPosition(INCENSE_SHOP.x,INCENSE_SHOP.y),false);assert.equal(validPosition(INCENSE_SHOP.approachX,INCENSE_SHOP.approachY),true);
+  // The counter faces the lotus pond, so customers stand on the pond side of the cart.
+  const pond={x:204,y:451},toPond=Math.hypot(pond.x-INCENSE_SHOP.x,pond.y-INCENSE_SHOP.y);
+  assert.ok(Math.hypot(pond.x-INCENSE_SHOP.approachX,pond.y-INCENSE_SHOP.approachY)<toPond-30);
+  assert.ok(Math.abs(Math.sin(INCENSE_SHOP.heading)-(pond.x-INCENSE_SHOP.x)/toPond)<1e-9&&Math.abs(Math.cos(INCENSE_SHOP.heading)-(pond.y-INCENSE_SHOP.y)/toPond)<1e-9);
+  assert.ok(canWalkBetween(450,605,INCENSE_SHOP.approachX,INCENSE_SHOP.approachY),'an open walk from the gate to the counter');
 });
 test('navigation blocks the pond and stream, permits crossing the bridge', () => {
   assert.equal(validPosition(204,390),false);assert.equal(validPosition(760,400),false);assert.equal(validPosition(760,505),true);assert.equal(validPosition(500,180),false);assert.equal(validPosition(500,335),true);assert.equal(validPosition(500,400),true);

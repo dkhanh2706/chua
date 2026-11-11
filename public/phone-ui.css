@@ -1,5 +1,6 @@
 .leave-icon{display:none}
 .settings-label{display:none}
+.player-supplies{display:contents}.blessing-short{display:none}
 
 /* Portrait phones: compact status, clear center, controls within thumb reach. */
 @media(max-width:800px) and (orientation:portrait){
@@ -21,7 +22,7 @@
   #welcome-footer .footer-flower{display:none}
 
   body.playing .topbar{height:calc(64px + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) calc(12px + env(safe-area-inset-right,0px)) 0 calc(12px + env(safe-area-inset-left,0px));background:linear-gradient(#f6f3e9e6,#f6f3e966,transparent)}
-  body.playing .brand{font-size:17px;gap:6px;white-space:nowrap}
+  body.playing .brand{font-size:17px;gap:6px;white-space:nowrap;min-height:44px}
   body.playing .brand-icon{font-size:29px}
   body.playing .brand-note,body.playing .top-divider{display:none}
   body.playing .top-right{gap:2px}
@@ -87,6 +88,74 @@
   body.playing .joystick{width:96px;height:96px}
   body.playing #location-hint{left:128px;font-size:12px}
   body.playing.settings-open .camera-controls{gap:4px;padding:6px}
+}
+
+/* Keep phone controls at the edges and reserve the centre for the scene. */
+@media(max-width:800px),(pointer:coarse){
+  body.playing .topbar{height:calc(60px + env(safe-area-inset-top,0px));padding:env(safe-area-inset-top,0px) 12px 0;align-items:center}
+  body.playing .brand{font-size:17px;gap:6px;white-space:nowrap;min-height:44px}
+  body.playing .brand-icon{font-size:29px}
+  body.playing .brand-note,body.playing .presence,body.playing .top-divider{display:none}
+  body.playing .top-right{display:contents}
+  body.playing #sound,body.playing .chat-toggle,body.playing .game-heading .text-button{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));width:44px;min-width:44px;height:44px;min-height:44px;display:grid;place-items:center;padding:0;margin:0;border:1px solid #d7dfc9;border-radius:50%;background:#faf8edf2;color:#405337;box-shadow:none}
+  body.playing #sound{right:calc(116px + env(safe-area-inset-right,0px))}
+  body.playing .chat-toggle{left:auto;right:calc(64px + env(safe-area-inset-right,0px))}
+  body.playing .game-heading{display:flex}
+  body.playing .game-heading .text-button{right:calc(12px + env(safe-area-inset-right,0px))}
+  body.playing .leave-label{display:none}body.playing .leave-icon{display:block}
+  body.playing .player-supplies{position:absolute;left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px));top:calc(66px + env(safe-area-inset-top,0px));z-index:3;display:flex;align-items:center;gap:8px;pointer-events:none}
+  body.playing .player-supplies .blessing-panel{position:static;display:flex;align-items:center;gap:8px;min-width:0;min-height:44px;padding:7px 12px;border-radius:24px;box-shadow:none}
+  body.playing .blessing-panel>span{font-size:12px;letter-spacing:0;white-space:nowrap}
+  body.playing .blessing-panel strong{font-size:20px;line-height:1}
+  body.playing .blessing-long,body.playing .blessing-panel small{display:none}
+  body.playing .blessing-short{display:inline}
+  body.playing .controls{left:calc(12px + env(safe-area-inset-left,0px));right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));width:auto;transform:none;padding:5px;border-radius:16px}
+  body.playing .action-button{height:48px;min-height:48px;padding:4px;font-size:12px;gap:4px;border-radius:10px}
+  body.playing .action-button:disabled{color:#657159;opacity:1;background:#e5e8dd}
+  body.playing .joystick{left:calc(16px + env(safe-area-inset-left,0px));bottom:calc(102px + env(safe-area-inset-bottom,0px));width:96px;height:96px}
+  body.playing .joystick-thumb{width:44px;height:44px}
+  body.playing .joystick-caption,body.playing .look-hint{display:none}
+  body.playing .settings-toggle{right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:center;gap:6px;width:104px;height:44px;border-radius:24px;font-size:23px}
+  body.playing .settings-label{display:inline;font-size:12px}
+  body.playing .yard-tools{top:auto;right:calc(12px + env(safe-area-inset-right,0px));bottom:calc(148px + env(safe-area-inset-bottom,0px));width:min(200px,calc(100% - 140px));display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:6px;gap:6px;border-radius:14px}
+  body.playing .yard-tools button{min-height:44px;height:auto;padding:8px 4px;font-size:12px;line-height:1.35}
+  body.playing .yard-tools #open-incense-shop{grid-column:1/-1}
+  body.playing .yard-tools #broom-hit{background:#faf9f2;color:#68765b}
+  body.playing .yard-tools>span{display:none}
+  body.playing #location-hint{display:none;top:calc(120px + env(safe-area-inset-top,0px));bottom:auto;left:12px;right:12px;width:auto;max-width:none;transform:none;padding:7px 10px;font-size:12px;line-height:1.5;border-radius:12px;text-align:center}
+  body.playing #location-hint[data-contextual=true]{display:block}
+  body.playing #toast{top:calc(120px + env(safe-area-inset-top,0px));bottom:auto;max-width:calc(100% - 24px);font-size:12px;line-height:1.5;padding:10px 14px;transform:translate(-50%,-8px)}
+  body.playing #toast.visible{transform:translate(-50%,0)}
+  body.playing.settings-open #toast,body.playing.chat-open #toast{visibility:hidden}
+  body.playing:has(#toast.visible) #location-hint{visibility:hidden}
+  body.playing #share-link,body.playing #help{display:none}
+  body.playing.settings-open #share-link,body.playing.settings-open #help{position:fixed;top:auto;bottom:calc(144px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;justify-content:center;gap:8px;width:calc((100% - 36px)/2);height:44px;min-height:44px;border-radius:12px;background:#faf8edf5;font-size:19px}
+  body.playing.settings-open #share-link{left:12px;right:auto}
+  body.playing.settings-open #help{right:12px;left:auto}
+  body.playing.settings-open #share-link:after{content:'Mời bạn';font:12px var(--sans)}
+  body.playing.settings-open #help:after{content:'Hướng dẫn';font:12px var(--sans)}
+  body.playing.settings-open .camera-controls{left:12px;right:12px;bottom:calc(200px + env(safe-area-inset-bottom,0px));width:auto;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:8px;border-radius:16px}
+  body.playing.settings-open .camera-controls button:nth-child(-n+3){grid-column:auto;justify-content:center;flex-direction:column;height:52px;padding:4px;gap:3px}
+  body.playing.settings-open .camera-controls button{height:44px;min-height:44px}
+  body.playing.settings-open .time-of-day{left:12px;right:128px;bottom:calc(90px + env(safe-area-inset-bottom,0px));width:auto;min-height:44px;border-radius:12px}
+  body.playing.settings-open .settings-toggle{bottom:calc(90px + env(safe-area-inset-bottom,0px))}
+  body.playing.settings-open .player-supplies,body.playing.chat-open .player-supplies{visibility:hidden}
+  body.playing.settings-open .joystick,body.playing.settings-open #location-hint,body.playing.settings-open .yard-tools,body.playing.chat-open #location-hint,body.playing.chat-open .yard-tools{visibility:hidden;pointer-events:none}
+  body.playing:has(#canvas[data-watching-fireworks="true"]) #location-hint{top:calc(66px + env(safe-area-inset-top,0px));bottom:auto;left:12px;right:12px;font-size:12px}
+}
+@media(orientation:landscape) and (max-width:950px) and (pointer:coarse){
+  body.playing .controls{left:auto;right:calc(12px + env(safe-area-inset-right,0px));width:min(380px,calc(100% - 160px))}
+  body.playing .joystick{bottom:calc(16px + env(safe-area-inset-bottom,0px));width:88px;height:88px}
+  body.playing .player-supplies{top:calc(62px + env(safe-area-inset-top,0px));right:auto}
+  body.playing .yard-tools{right:calc(128px + env(safe-area-inset-right,0px));bottom:calc(88px + env(safe-area-inset-bottom,0px));width:min(240px,calc(100% - 260px))}
+  body.playing .settings-toggle,body.playing.settings-open .settings-toggle{bottom:calc(88px + env(safe-area-inset-bottom,0px))}
+  body.playing #location-hint,body.playing #toast{top:calc(114px + env(safe-area-inset-top,0px))}
+  body.playing.settings-open .camera-controls{left:auto;right:12px;bottom:calc(144px + env(safe-area-inset-bottom,0px));width:min(452px,calc(100% - 116px));grid-template-columns:repeat(6,minmax(0,1fr));padding:6px}
+  body.playing.settings-open .camera-controls button:nth-child(-n+3){grid-column:span 2;height:44px;flex-direction:row}
+  body.playing.settings-open .camera-controls button:nth-last-child(-n+3){grid-column:span 2}
+  body.playing.settings-open #share-link{left:auto;right:244px;bottom:calc(88px + env(safe-area-inset-bottom,0px));width:104px}
+  body.playing.settings-open #help{right:128px;bottom:calc(88px + env(safe-area-inset-bottom,0px));width:104px}
+  body.playing.settings-open .time-of-day{left:auto;right:360px;bottom:calc(88px + env(safe-area-inset-bottom,0px));width:104px}
 }
 
 /* Choose an appearance first; enter the name in a separate, focused step. */

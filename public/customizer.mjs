@@ -38,6 +38,7 @@ export class Customizer{
     row.append(label,input,hex);field.append(row,swatches);$('custom-panel').append(field);
   }
   renderPanel(){
+    this.view?.studio.setFocus(this.part);
     for(const[part]of parts){const tab=$('tab-'+part),selected=part===this.part;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;}
     $('custom-panel').replaceChildren();$('custom-panel').setAttribute('aria-labelledby','tab-'+this.part);
     if(this.part==='accessories'){

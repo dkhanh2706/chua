@@ -6,7 +6,7 @@
   const labels={shirt:{tunic:'Áo lam',long:'Áo dài tay',short:'Áo ngắn tay'},pants:{straight:'Quần suông',wide:'Quần rộng',shorts:'Quần lửng'},shoes:{slipon:'Giày vải',sneakers:'Giày thể thao',sandals:'Dép quai'},hair:{bald:'Đầu trọc',short:'Tóc ngắn',side:'Tóc rẽ ngôi',bob:'Tóc bob',ponytail:'Đuôi ngựa',braids:'Hai bím',long:'Tóc dài'},hairAccessory:{none:'Không đeo',bow:'Nơ',clip:'Kẹp tóc'}};
   function defaults(gender='male'){
     const female=gender==='female';
-    return {gender:female?'female':'male',shirt:'tunic',pants:'straight',shoes:'slipon',hair:female?'ponytail':'short',necklace:false,hairAccessory:'none',colors:{shirt:female?'#b68183':'#87966f',pants:'#656d60',shoes:'#68594d',shoeTrim:'#e6dfca',hair:'#443a32',hairTie:'#667959',skin:'#e6bd99',necklace:'#b89a58',hairAccessory:'#d59b9c'}};
+    return {gender:female?'female':'male',shirt:'tunic',pants:'straight',shoes:'slipon',hair:female?'ponytail':'short',necklace:false,hairAccessory:'none',colors:{shirt:female?'#b98288':'#7c927e',pants:'#47524c',shoes:'#54483e',shoeTrim:'#e9e5d9',hair:'#332c29',hairTie:'#667959',skin:'#e4b795',necklace:'#b89a58',hairAccessory:'#d59b9c'}};
   }
   const validColor=value=>typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value);
   const characterCode=value=>typeof value==='string'?value.normalize('NFC').trim().toLowerCase():'';

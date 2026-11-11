@@ -1,6 +1,21 @@
 import * as THREE from 'three';
 import {seededRandom} from './garden-layout.mjs';
 import {addNightLight} from './night-lights.mjs';
+import {waterWaveGLSL,sampleWaterWaves} from './water-waves.mjs';
+
+// Use the same shoreline for displacement, breaking waves and the waterline.
+const shorelineGLSL=`
+  float shore(float x){x=clamp(x,-56.6,56.6);float bay=-72.+4.*sin((x+39.)*.055)+1.5*sin(x*.15)+25.*(1.-smoothstep(-55.,-40.,x));return mix(bay,-88.,smoothstep(16.,30.,x));}
+  float coastDistance(vec2 p){
+    float start=-43.-27.*smoothstep(18.,28.,p.x);
+    float sideWidth=20.+2.*sin(p.y*.05)+1.5*sin(p.y*.13);
+    float side=max(0.,(abs(p.x)-56.6)/sideWidth);
+    float rear=max(0.,(start-p.y)/(start-shore(p.x)));
+    float frontShore=66.+2.8*sin(p.x*.055)+1.2*sin(p.x*.13);
+    float front=max(0.,(p.y-44.6)/(frontShore-44.6));
+    return (length(vec2(side,max(rear,front)))-1.)*20.;
+  }
+`;
 
 function grid(rows,columns,point){
   const positions=[],uv=[],indices=[];
@@ -69,42 +84,55 @@ export class Seaside{
       side:THREE.DoubleSide,uniforms:{uTime:this.time,uNight:this.night,
         uDayHorizon:{value:new THREE.Color('#a8c9cd').convertLinearToSRGB()},uNightHorizon:{value:new THREE.Color('#111e38').convertLinearToSRGB()}},
       vertexShader:`uniform float uTime;varying vec3 vWorld;
-        void main(){vec3 p=position;p.y+=sin(p.x*.19+p.z*.13-uTime*.65)*.055+sin(p.z*.43+p.x*.07-uTime*.85)*.025;
+        ${waterWaveGLSL}
+        ${shorelineGLSL}
+        void main(){vec3 p=position;
+          p.y+=waterWaves(p.xz,uTime).x*smoothstep(-1.,8.,coastDistance(p.xz));
           vWorld=(modelMatrix*vec4(p,1.)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.);}`,
       fragmentShader:`uniform float uTime;uniform float uNight;uniform vec3 uDayHorizon;uniform vec3 uNightHorizon;varying vec3 vWorld;
-        float shore(float x){x=clamp(x,-56.6,56.6);float bay=-72.+4.*sin((x+39.)*.055)+1.5*sin(x*.15)+25.*(1.-smoothstep(-55.,-40.,x));return mix(bay,-88.,smoothstep(16.,30.,x));}
-        float progress(vec2 p){
-          float start=-43.-27.*smoothstep(18.,28.,p.x);
-          float sideWidth=20.+2.*sin(p.y*.05)+1.5*sin(p.y*.13);
-          float side=max(0.,(abs(p.x)-56.6)/sideWidth);
-          float rear=max(0.,(start-p.y)/(start-shore(p.x)));
-          float frontShore=66.+2.8*sin(p.x*.055)+1.2*sin(p.x*.13);
-          float front=max(0.,(p.y-44.6)/(frontShore-44.6));
-          return length(vec2(side,max(rear,front)));
-        }
+        ${waterWaveGLSL}
+        ${shorelineGLSL}
         float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
         float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
         void main(){
-          float distance=(progress(vWorld.xz)-1.)*20.;
-          float swash=sin(uTime*.48+vWorld.x*.055+vWorld.z*.04)*.55;
-          if(distance< -swash)discard;
-          float depth=smoothstep(0.,46.,distance);
-          vec3 water=mix(vec3(.18,.56,.54),vec3(.018,.20,.34),depth);
-          float swell=sin(vWorld.z*.78+sin(vWorld.x*.11)*1.6-uTime*.8);
-          float detail=sin(vWorld.z*2.4+vWorld.x*.57-uTime*1.15);
-          float gleam=pow(max(0.,swell*.75+detail*.25),12.)*(.025+.045*noise(vWorld.xz*.14));
-          water+=vec3(.65,.83,.85)*gleam;
-          float waveCoord=mix(dot(vWorld.xz,vec2(.3,.95)),distance,exp(-max(0.,distance)/14.));
-          float rolling=sin(waveCoord*.66+uTime*.5+sin(vWorld.x*.13)*.65);
-          float patches=smoothstep(.32,.78,noise(vec2(vWorld.x*.22,waveCoord*.18+uTime*.035)));
-          float crest=pow(max(0.,rolling),20.)*patches*exp(-max(0.,distance)*.025);
-          float lace=.45+.55*noise(vec2(vWorld.x*.8,distance*.9+uTime*.12));
-          float wash=(1.-smoothstep(.15,1.55,distance+swash))*lace;
-          float foam=clamp(crest*.28+wash*.72,0.,.78);
-          water=mix(water,vec3(.81,.92,.86),foam);
-          water*=mix(vec3(1.),vec3(.19,.31,.48),uNight);
-          float moon=pow(max(0.,1.-abs(vWorld.x+35.)/(9.+distance*.12)),5.)*pow(max(0.,swell),8.);
-          water+=vec3(.14,.20,.28)*moon*uNight;
+          vec2 p=vWorld.xz;float distance=coastDistance(p);
+          float swash=sin(uTime*.72+p.x*.035+p.y*.027)*.42+sin(uTime*1.13+p.x*.07)*.13;
+          float edge=distance+swash;
+          if(edge<0.)discard;
+          float nearShore=smoothstep(-1.,8.,distance);
+          vec3 waves=waterWaves(p,uTime);
+          // Small wind ripples fade with pixel footprint to avoid distant shimmer.
+          float detailFade=1.-smoothstep(.2,1.1,max(length(dFdx(p)),length(dFdy(p))));
+          vec3 detail=waterWave(p,uTime,vec2(.8,-.6),6.8,.006,2.4)*detailFade;
+          vec2 slope=(waves.yz+detail.yz)*nearShore;
+          vec3 normal=normalize(vec3(-slope.x,1.,-slope.y));
+          vec3 view=normalize(cameraPosition-vWorld),reflected=reflect(-view,normal);
+          float fresnel=.025+.975*pow(1.-max(dot(normal,view),0.),5.);
+          float depth=1.-exp(-max(0.,distance)*.055);
+          vec3 water=mix(vec3(.13,.48,.43),vec3(.018,.16,.25),depth);
+          water+=vec3(.025,.065,.052)*waves.x;
+          water*=mix(vec3(1.),vec3(.17,.27,.43),uNight);
+          float skyHeight=smoothstep(0.,.8,reflected.y);
+          vec3 sky=mix(vec3(.48,.69,.71),vec3(.17,.40,.62),skyHeight);
+          float cloud=noise(reflected.xz*5.+vec2(uTime*.008,0.));
+          sky+=vec3(.08)*smoothstep(.5,.8,cloud)*(1.-skyHeight*.6);
+          sky=mix(sky,mix(vec3(.055,.09,.16),vec3(.012,.025,.065),skyHeight),uNight);
+          water=mix(water,sky,fresnel*.82);
+          vec3 sun=normalize(vec3(-.45,.82,.35)),moon=normalize(vec3(-.24,.72,-.65));
+          float sunGlint=pow(max(dot(normal,normalize(sun+view)),0.),240.);
+          float moonGlint=pow(max(dot(normal,normalize(moon+view)),0.),170.);
+          water+=vec3(1.,.87,.62)*sunGlint*.48*(1.-uNight)+vec3(.45,.61,.85)*moonGlint*.32*uNight;
+          // Broken crests travel towards the entire island, then dissolve in the wash.
+          vec2 drift=p*.48+vec2(uTime*.11,-uTime*.17);
+          float lace=noise(drift)*.65+noise(drift*2.7)*.35;
+          float phase=distance*.86+uTime*1.45+noise(p*.09)*2.4;
+          float breaker=smoothstep(.74,.98,sin(phase))*(1.-smoothstep(1.5,13.,distance));
+          float patches=smoothstep(.24,.72,lace);
+          float wash=(1.-smoothstep(.08,1.25,edge))*(.3+.7*patches);
+          float pores=.55+.45*smoothstep(.2,.75,noise(drift*6.3));
+          float foam=clamp((breaker*patches*.6+wash*.75)*pores,0.,.85);
+          vec3 foamColor=mix(vec3(.79,.88,.81),vec3(.16,.23,.32),uNight);
+          water=mix(water,foamColor,foam);
           gl_FragColor=vec4(water,1.);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -175,7 +203,12 @@ export class Seaside{
   }
   update(time){
     this.time.value=time;
-    for(const b of this.boats){b.root.position.set(b.x+Math.sin(time*.035+b.phase)*.35,this.layout.waterY+.18+Math.sin(time*.7+b.phase)*.07,b.z);b.root.rotation.set(Math.sin(time*.6+b.phase)*.025,b.angle,Math.sin(time*.72+b.phase)*.035);}
+    for(const b of this.boats){
+      const x=b.x+Math.sin(time*.035+b.phase)*.35,wave=sampleWaterWaves(x,b.z,time);
+      const fade=THREE.MathUtils.smoothstep((this.progress(x,b.z)-1)*20,-1,8),c=Math.cos(b.angle),s=Math.sin(b.angle);
+      b.root.position.set(x,this.layout.waterY+.18+wave.height*fade,b.z);
+      b.root.rotation.set(-Math.atan((wave.dx*s+wave.dz*c)*fade),b.angle,Math.atan((wave.dx*c-wave.dz*s)*fade),'YXZ');
+    }
     this.beacon.rotation.y=time*.12;
   }
 }

@@ -1,4 +1,5 @@
 (function (root) {
+  const {insideIncenseShop}=typeof module!=='undefined'&&module.exports?require('./incense-shop'):root.TempleIncense;
   const WORLD = { width: 1000, height: 700 };
   const WALK_BOUNDS={left:-400,right:1400,rear:-650,front:1100};
   const COAST={left:-56.6,right:56.6,sandStart:-43,front:44.6,waterY:-2.6,cliffX:24};
@@ -64,6 +65,7 @@
   }
   function validPosition(x, y) {
     if (!Number.isFinite(x)||!Number.isFinite(y)||x<WALK_BOUNDS.left||x>WALK_BOUNDS.right||y<WALK_BOUNDS.rear||y>WALK_BOUNDS.front) return false;
+    if(insideIncenseShop(x,y))return false;
     const wx=(x-500)/10,wz=(y-350)/10;
     if(coastProgress(wx,wz)>.99||nearGardenWall(wx,wz))return false;
     if(wz< -22.5&&wz> -79&&wx>COAST.cliffX&&wx<57)return false;

@@ -10,6 +10,7 @@ import {findWalkingRoute} from './navigation.mjs';
   let target=null,lastFrame=performance.now(),lastSent=0,lastPosition=null,localBowUntil=0,incensePending=false,sofaPending=false,lastHit=-Infinity;
   let toastTimer,pendingJoin,joinTimer,uiTimer=0;
   let unread=0,chatPending=false;
+  let purchasePending=null;
   function setChat(open,focus=true){
     $('chat-panel').hidden=!open;$('chat-toggle').setAttribute('aria-expanded',String(open));
     document.body.classList.toggle('chat-open',open);
@@ -42,8 +43,51 @@ import {findWalkingRoute} from './navigation.mjs';
   window.visualViewport?.addEventListener('scroll',fitPhoneViewport);
   const players=new Map(),items=new Map(),keys=new Set(),leafPatches=new Map();
   const {nearestRack,nearestLeaves,SWEEP_DURATION,HIT_DURATION,HIT_COOLDOWN}=window.TempleSweeping;
+  const {INCENSE_SHOP,INCENSE_PACKS,nearIncenseShop}=window.TempleIncense;
   const joystickInput={x:0,y:0,pointer:null,bounds:null};
   const velocity={x:0,y:0};
+  for(const pack of INCENSE_PACKS){
+    const button=document.createElement('button');button.type='button';button.className='incense-pack';button.dataset.incensePack=pack.id;
+    button.setAttribute('aria-label',`Mua ${pack.name}, ${pack.sticks} cây, giá ${pack.cost} phước`);
+    button.innerHTML=`${pack.id==='bundle'?'<span class="pack-saving">Tiết kiệm 1 phước</span>':''}<span class="pack-sticks" aria-hidden="true" style="--middle:${(pack.sticks-1)/2}">${Array.from({length:pack.sticks},(_,i)=>`<i style="--i:${i}"></i>`).join('')}</span><strong class="pack-name">${pack.name}</strong><span class="pack-quantity">${pack.sticks} cây nhang</span><span class="pack-buy">Mua · ${pack.cost} phước</span>`;
+    button.onclick=()=>buyIncense(pack.id);$('incense-packs').append(button);
+  }
+  function canVisitShop(me){return nearIncenseShop(me)&&window.canWalkBetween(me.x,me.y,INCENSE_SHOP.approachX,INCENSE_SHOP.approachY);}
+  function updateIncenseUI(me){
+    if(!me)return;
+    const stock=me.incenseSticks||0,blessings=me.blessings||0;
+    $('incense-guide').disabled=performance.now()<localBowUntil;
+    if($('incense-stock').textContent!==String(stock))$('incense-stock').textContent=String(stock);
+    $('incense-guide').setAttribute('aria-label',`Nhang mang theo: ${stock} cây. Tới xe Bán nhang của Jerry`);
+    $('shop-stock').textContent=String(stock);$('shop-blessings').textContent=String(blessings);
+    if(!$('incense-shop-dialog').open&&!purchasePending)return;
+    const busy=performance.now()<localBowUntil||me.action!=='stand',nearShop=canVisitShop(me);
+    for(const pack of INCENSE_PACKS){const button=document.querySelector(`[data-incense-pack="${pack.id}"]`);button.disabled=!!purchasePending||busy||blessings<pack.cost||!nearShop;button.querySelector('.pack-buy').textContent=purchasePending===pack.id?'Đang mua…':`Mua · ${pack.cost} phước`;}
+  }
+  function openIncenseShop(){
+    const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil||me.action!=='stand')return;
+    if(!canVisitShop(me)){toast('Lại gần phía trước xe Bán nhang của Jerry nhé.');return;}
+    clearMovement();target=null;sendMove(true);setChat(false,false);document.body.classList.remove('settings-open');$('settings-toggle').setAttribute('aria-expanded','false');
+    updateIncenseUI(me);$('shop-message').textContent=me.blessings<1?'Bạn chưa đủ phước. Quét lá để tích thêm nhé.':'Jerry chào bạn! Chọn gói nhang để mua.';
+    if(!$('incense-shop-dialog').open)$('incense-shop-dialog').showModal();updateIncenseUI(me);
+  }
+  function buyIncense(packId){
+    const me=players.get(myId),pack=INCENSE_PACKS.find(p=>p.id===packId);
+    if(!active||!socket?.connected||!me||!pack||purchasePending||!$('incense-shop-dialog').open)return;
+    if(!canVisitShop(me)){toast('Lại gần xe để mua nhang nhé.');return;}
+    if(me.blessings<pack.cost){$('shop-message').textContent=`Cần ${pack.cost} phước cho gói này. Quét thêm lá rồi ghé Jerry nhé.`;return;}
+    purchasePending=pack.id;updateIncenseUI(me);socket.emit('buy-incense',{packId});
+  }
+  function goToIncenseShop(){
+    const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil)return;
+    if(canVisitShop(me)&&me.action==='stand'){openIncenseShop();return;}
+    const exit=window.SOFA_SEATS.find(s=>s.id===me.sofaSeatId),x=INCENSE_SHOP.approachX,y=INCENSE_SHOP.approachY;
+    const route=findRoute(exit?.approachX??me.x,exit?.approachY??me.y,x,y);
+    if(!route){toast('Tới lối vào bên phải để gặp xe Bán nhang của Jerry nhé.');return;}
+    clearMovement();target={x,y,route,incenseShop:true};toast('Đang đi tới xe Bán nhang của Jerry.');
+  }
+  $('incense-guide').onclick=goToIncenseShop;$('open-incense-shop').onclick=openIncenseShop;
+  $('incense-shop-dialog').addEventListener('close',()=>{clearMovement();if(active)$('canvas').focus({preventScroll:true});});
   function clearMovement(immediate=true){keys.clear();joystickInput.x=0;joystickInput.y=0;joystickInput.pointer=null;joystickInput.bounds=null;if(immediate){velocity.x=0;velocity.y=0;}$('joystick').style.setProperty('--jx','0px');$('joystick').style.setProperty('--jy','0px');}
   const gameCanvas=$('canvas'),previewHost=$('preview').parentElement,gameHost=gameCanvas.parentElement;
   $('preview').replaceWith(gameCanvas);
@@ -68,6 +112,7 @@ import {findWalkingRoute} from './navigation.mjs';
   gameCanvas.addEventListener('avatar-step',event=>sound.footstep(event.detail.surface));
   function toast(message){$('toast').textContent=message;$('toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),3500);}
   $('share-link').onclick=async()=>{
+    document.body.classList.remove('settings-open');$('settings-toggle').setAttribute('aria-expanded','false');
     const link=new URL('/',location.href).href;
     try{
       if(navigator.clipboard&&window.isSecureContext)await navigator.clipboard.writeText(link);
@@ -97,13 +142,13 @@ import {findWalkingRoute} from './navigation.mjs';
     socket.on('chat-error',code=>{chatPending=false;$('chat-send').disabled=false;$('chat-error').textContent=code==='rate-limit'?'Bạn gửi hơi nhanh. Chờ một chút rồi gửi lại nhé.':'Tin nhắn cần có từ 1 đến 300 ký tự.';});
     socket.on('joined',data=>{
       myId=data.id;players.clear();items.clear();for(const p of data.players)players.set(p.id,{...p,tx:p.x,ty:p.y});for(const item of data.incense)items.set(item.id,{...item,end:performance.now()+item.ttl});
-      active=true;setJoining(false);$('entry-dialog').close();target=null;clearMovement();lastPosition=null;localBowUntil=0;incensePending=false;sofaPending=false;lastHit=-Infinity;
+      active=true;setJoining(false);$('entry-dialog').close();target=null;clearMovement();lastPosition=null;localBowUntil=0;incensePending=false;sofaPending=false;lastHit=-Infinity;purchasePending=null;$('incense-shop-dialog').close();updateIncenseUI(players.get(myId));
       gameHost.prepend(gameCanvas);document.body.classList.add('playing');view.setActive(true);setCamera('overhead');
       leafPatches.clear();for(const patch of data.leaves||[])leafPatches.set(patch.id,{...patch,readyAt:performance.now()+patch.readyIn});
       view.yardCare.setPatches([...leafPatches.values()]);updateYardUI(players.get(myId),performance.now());
       sound.setGardenSources(view.garden.audioSources);
       sound.setInGame(true);
-      $('welcome').hidden=true;$('welcome-footer').hidden=true;$('game').hidden=false;$('connection-dialog').close();$('canvas').focus({preventScroll:true});updatePeople();toast(view.mobile?'Bạn đã về đến. Kéo cần để đi, vuốt để nhìn quanh.':'Bạn đã về đến. Kéo để ngắm cảnh, WASD để bước đi.');
+      $('welcome').hidden=true;$('welcome-footer').hidden=true;$('game').hidden=false;$('connection-dialog').close();$('canvas').focus({preventScroll:true});updatePeople();toast(view.mobile?'Kéo cần để đi · Vuốt để nhìn quanh':'Bạn đã về đến. Kéo để ngắm cảnh, WASD để bước đi.');
     });
     socket.on('join-error',code=>{setJoining(false);$('join-error').textContent=errorMessages[code]||'Chưa thể vào sân chùa.';if($('connection-dialog').open){$('connection-dialog').close();showHome();$('join-error').textContent=errorMessages[code]||'Chưa thể vào sân chùa.';}});
     socket.on('player-joined',p=>{players.set(p.id,{...p,tx:p.x,ty:p.y});updatePeople();toast(`${p.name} vừa ghé vào sân chùa.`);});
@@ -115,7 +160,12 @@ import {findWalkingRoute} from './navigation.mjs';
     });
     socket.on('sofa-error',code=>{sofaPending=false;toast({occupied:'Chỗ này đã có người ngồi. Bạn chọn đệm bên cạnh nhé.',far:'Tới phía trước ghế để ngồi nhé.',busy:'Đợi hoàn thành động tác rồi ngồi nhé.'}[code]||'Bạn chọn một chỗ trên sofa nhé.');});
     socket.on('state',state=>{let change=false;for(const p of state){const current=players.get(p.id);if(!current)continue;const oldAction=current.action;current.tx=p.x;current.ty=p.y;if(p.id!==myId){current.action=p.action;current.moving=Math.hypot(current.x-p.x,current.y-p.y)>1;}else if(performance.now()>=localBowUntil&&current.action==='bow'&&p.action==='stand')current.action='stand';if(oldAction!==current.action)change=true;}if(change)updatePeople();});
-    socket.on('incense-added',i=>{items.set(i.id,{...i,end:performance.now()+i.ttl});const p=players.get(i.owner);if(p){p.ritual={kind:'incense',start:performance.now(),fromSit:p.action==='sit'};p.action='bow';if(i.owner===myId){incensePending=false;localBowUntil=performance.now()+1500;target=null;clearMovement();}sound.bell(Math.hypot((players.get(myId)?.x||500)-URN.x,(players.get(myId)?.y??URN.y)-URN.y));}updatePeople();toast(i.owner===myId?'Một nén hương, một chút lòng thành.':'Một nén hương vừa được thắp.');});
+    socket.on('incense-purchased',data=>{
+      const p=players.get(data.id);if(!p)return;p.blessings=data.blessings;p.incenseSticks=data.incenseSticks;
+      if(data.id===myId){purchasePending=null;updateYardUI(p,performance.now());updateIncenseUI(p);const message=`Đã mua ${data.sticks} cây nhang · −${data.cost} phước. Bạn còn ${data.incenseSticks} cây.`;$('shop-message').textContent=message;toast(message);}
+    });
+    socket.on('incense-shop-error',code=>{purchasePending=null;const message={invalid:'Gói nhang chưa hợp lệ. Bạn chọn lại nhé.',busy:'Hoàn thành động tác rồi mua nhang nhé.',far:'Lại gần phía trước xe Bán nhang của Jerry nhé.',blessings:'Chưa đủ phước. Quét thêm lá rồi ghé Jerry nhé.'}[code]||'Chưa thể mua nhang.';$('shop-message').textContent=message;updateIncenseUI(players.get(myId));toast(message);});
+    socket.on('incense-added',i=>{items.set(i.id,{...i,end:performance.now()+i.ttl});const p=players.get(i.owner);if(p){p.incenseSticks=i.remainingSticks;p.ritual={kind:'incense',start:performance.now(),fromSit:p.action==='sit'};p.action='bow';if(i.owner===myId){incensePending=false;localBowUntil=performance.now()+1500;target=null;clearMovement();updateIncenseUI(p);}sound.bell(Math.hypot((players.get(myId)?.x||500)-URN.x,(players.get(myId)?.y??URN.y)-URN.y));}updatePeople();toast(i.owner===myId?'Một nén hương, một chút lòng thành.':'Một nén hương vừa được thắp.');});
     socket.on('incense-removed',i=>{items.delete(i.id);updatePeople();});
     socket.on('broom-changed',data=>{
       const p=players.get(data.id);if(!p)return;p.hasBroom=data.hasBroom;
@@ -135,13 +185,20 @@ import {findWalkingRoute} from './navigation.mjs';
     });
     socket.on('broom-hit',data=>{
       const p=players.get(data.id),other=players.get(data.targetId),now=performance.now();if(!p)return;
-      p.blessings=data.blessings;if(other)other.struckStart=now/1000;
-      if(data.id===myId){updateYardUI(p,now);toast(other?`Chổi trúng ${other.name} · −1 phước lành`:'Vung chổi hụt · Không mất phước lành');}
-      else if(data.targetId===myId)toast(`${p.name} vừa đánh chổi · Người đánh mất 1 phước lành`);
+      p.blessings=data.blessings;
+      if(other){
+        other.struckStart=now/1000;other.fallHeading=data.heading;other.knockdown=(data.knockdown||0)/1000;
+        // A knocked-down visitor drops whatever they were doing, including their own swing.
+        if(data.knockdown){other.hitStart=null;other.sweepStart=null;other.action='stand';other.ritual=null;other.moving=false;}
+      }
+      if(data.targetId===myId&&data.knockdown){localBowUntil=Math.max(localBowUntil,now+data.knockdown);target=null;clearMovement();incensePending=false;}
+      if(data.id===myId){updateYardUI(p,now);toast(other?`Chổi trúng ${other.name}${data.knockdown?' · Té lăn quay':''} · −1 phước lành`:'Vung chổi hụt · Không mất phước lành');}
+      else if(data.targetId===myId)toast(data.knockdown?`${p.name} quật chổi làm bạn té ngã · Nằm nghỉ chút rồi dậy nhé`:`${p.name} vừa đánh chổi · Người đánh mất 1 phước lành`);
+      if(other&&data.knockdown)updatePeople();
     });
     socket.on('hit-error',code=>toast({broom:'Bạn cần cầm chổi trước.',busy:'Đợi hoàn thành động tác nhé.',cooldown:'Chờ một chút trước khi vung tiếp.',direction:'Hãy quay về hướng muốn vung chổi.'}[code]||'Chưa thể vung chổi.'));
-    socket.on('incense-error',code=>{incensePending=false;toast({far:'Lại gần lư hương trong chính điện nhé.',busy:'Hoàn thành động tác rồi cắm nén tiếp theo nhé.',limit:'Bạn đang có 3 nén hương. Hãy đợi hương tàn.',full:'Lư hương đã đầy. Hãy đợi một chút nhé.'}[code]||'Chưa thể thắp nhang.');});
-    socket.on('disconnect',reason=>{sound.setInGame(false);sound.setEnabled(false);incensePending=false;sofaPending=false;clearMovement();target=null;if(active){active=false;$('connection-dialog').showModal();}if(joining){setJoining(false);$('join-error').textContent='Kết nối bị gián đoạn. Bạn thử vào lại nhé.';}});
+    socket.on('incense-error',code=>{incensePending=false;toast({far:'Lại gần lư hương trong chính điện nhé.',busy:'Hoàn thành động tác rồi cắm nén tiếp theo nhé.',limit:'Bạn đang có 3 nén hương. Hãy đợi hương tàn.',full:'Lư hương đã đầy. Hãy đợi một chút nhé.','no-incense':'Bạn hết nhang rồi. Quét lá tích phước và mua nhang ở xe của Jerry nhé.'}[code]||'Chưa thể thắp nhang.');});
+    socket.on('disconnect',reason=>{sound.setInGame(false);sound.setEnabled(false);incensePending=false;sofaPending=false;purchasePending=null;$('incense-shop-dialog').close();clearMovement();target=null;if(active){active=false;$('connection-dialog').showModal();}if(joining){setJoining(false);$('join-error').textContent='Kết nối bị gián đoạn. Bạn thử vào lại nhé.';}});
     socket.on('connect_error',()=>{if(joining){setJoining(false);$('join-error').textContent='Chưa kết nối được với sân chùa. Bạn thử lại nhé.';}});
   }
   function join(){
@@ -156,9 +213,9 @@ import {findWalkingRoute} from './navigation.mjs';
     joinTimer=setTimeout(()=>{if(!joining)return;setJoining(false);socket.disconnect();$('join-error').textContent='Kết nối hơi lâu. Bạn thử vào lại nhé.';if($('connection-dialog').open){$('connection-dialog').close();showHome();}},12000);
   }
   $('join-form').onsubmit=e=>{e.preventDefault();join();};
-  function showHome(){sound.setInGame(false);active=false;myId=null;players.clear();items.clear();clearMovement();target=null;document.body.classList.remove('playing','people-open','settings-open');$('people-toggle').setAttribute('aria-expanded','false');$('settings-toggle').setAttribute('aria-expanded','false');previewHost.prepend(gameCanvas);view?.setActive(false);$('game').hidden=true;$('welcome').hidden=false;$('welcome-footer').hidden=false;$('connection-dialog').close();setJoining(false);if(socket)socket.disconnect();sound.setEnabled(false);status();}
+  function showHome(){sound.setInGame(false);active=false;$('incense-shop-dialog').close();myId=null;players.clear();items.clear();clearMovement();target=null;document.body.classList.remove('playing','people-open','settings-open');$('people-toggle').setAttribute('aria-expanded','false');$('settings-toggle').setAttribute('aria-expanded','false');previewHost.prepend(gameCanvas);view?.setActive(false);$('game').hidden=true;$('welcome').hidden=false;$('welcome-footer').hidden=false;$('connection-dialog').close();setJoining(false);if(socket)socket.disconnect();sound.setEnabled(false);status();}
   $('leave').onclick=()=>{resetChat();showHome();};$('back-home').onclick=()=>{resetChat();showHome();};$('rejoin').onclick=()=>{if(joining)return;join();};
-  $('help').onclick=()=>{$('help-dialog').showModal();clearMovement();target=null;};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
+  $('help').onclick=()=>{document.body.classList.remove('settings-open');$('settings-toggle').setAttribute('aria-expanded','false');$('help-dialog').showModal();clearMovement();target=null;};document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
   function setCamera(mode){view?.setMode(mode);for(const key of ['overhead','panorama','follow'])$('camera-'+key).setAttribute('aria-pressed',String(mode===key));}
   $('camera-overhead').onclick=()=>setCamera('overhead');$('camera-panorama').onclick=()=>setCamera('panorama');$('camera-follow').onclick=()=>setCamera('follow');$('camera-in').onclick=()=>view?.zoomBy(.85);$('camera-out').onclick=()=>view?.zoomBy(1.18);$('camera-reset').onclick=()=>view?.resetCamera();
   $('people-toggle').onclick=()=>{const open=document.body.classList.toggle('people-open');$('people-toggle').setAttribute('aria-expanded',String(open));};
@@ -187,30 +244,32 @@ import {findWalkingRoute} from './navigation.mjs';
   function exitSofaLocally(me){const seat=window.SOFA_SEATS.find(s=>s.id===me.sofaSeatId);if(!seat)return;me.x=seat.approachX;me.y=seat.approachY;me.sofaSeatId=null;}
   function action(type){const me=players.get(myId);if(!active||!me||sofaPending||performance.now()<localBowUntil)return;if(type==='bow'&&me.sofaSeatId){toast('Đứng dậy khỏi sofa để cúi lạy nhé.');return;}target=null;clearMovement();if(type==='sit')type=me.action==='sit'?'stand':'sit';if(type==='sit'){const seat=nearbySofaSeat(me);if(seat){requestSofa(seat.id);return;}}const fromSit=me.action==='sit';if(type==='stand')exitSofaLocally(me);me.action=type;if(type==='bow'){me.ritual={kind:'bow',start:performance.now(),fromSit};localBowUntil=performance.now()+1500;}else{me.ritual=null;if(fromSit&&type==='stand')localBowUntil=performance.now()+500;}socket.emit('action',type);updatePeople();}
   $('sit').onclick=()=>action('sit');$('bow').onclick=()=>action('bow');
-  function plant(){if(!active||incensePending)return;const me=players.get(myId);if(!me)return;if(Math.hypot(me.x-URN.x,me.y-URN.y)>80){toast('Lại gần lư hương trong chính điện nhé.');return;}if(performance.now()<localBowUntil)return;if([...items.values()].filter(i=>i.owner===myId).length>=3){toast('Bạn đang có 3 nén hương. Hãy đợi hương tàn.');return;}incensePending=true;$('incense').disabled=true;sendMove(true);socket.emit('plant-incense');}
+  function plant(){if(!active||incensePending)return;const me=players.get(myId);if(!me)return;if(!(me.incenseSticks>0)){toast('Bạn chưa có nhang. Quét lá tích phước rồi mua ở xe Bán nhang của Jerry nhé.');return;}if(Math.hypot(me.x-URN.x,me.y-URN.y)>80){toast('Lại gần lư hương trong chính điện nhé.');return;}if(performance.now()<localBowUntil)return;if([...items.values()].filter(i=>i.owner===myId).length>=3){toast('Bạn đang có 3 nén hương. Hãy đợi hương tàn.');return;}incensePending=true;$('incense').disabled=true;sendMove(true);socket.emit('plant-incense');}
   $('incense').onclick=plant;
   function updateYardUI(me,now){
     if(!me)return;
-    const rack=nearestRack(me),patch=nearestLeaves(me,leafPatches.values(),now),busy=now<localBowUntil||me.action!=='stand';
+    const rack=nearestRack(me),patch=nearestLeaves(me,leafPatches.values(),now),busy=now<localBowUntil||me.action!=='stand',shop=canVisitShop(me);
+    updateIncenseUI(me);$('open-incense-shop').hidden=!shop;$('open-incense-shop').disabled=!shop||busy;
     const score=String(me.blessings||0);if($('blessing-score').textContent!==score)$('blessing-score').textContent=score;
     const sweeping=me.sweepStart&&now-me.sweepStart*1000<SWEEP_DURATION,canSweep=!!me.hasBroom&&!!patch;
     $('broom-label').textContent=me.hasBroom?'Trả chổi':'Lấy chổi';$('broom-pickup').setAttribute('aria-pressed',String(!!me.hasBroom));$('broom-pickup').hidden=!rack;$('broom-pickup').disabled=!rack||busy;
     $('sweep-leaves').hidden=!canSweep&&!sweeping;$('sweep-leaves').disabled=!canSweep||busy;$('sweep-label').textContent=sweeping?'Đang quét…':'Quét lá';
     $('broom-hit').hidden=!me.hasBroom;$('broom-hit').disabled=!me.hasBroom||busy||now-lastHit<HIT_COOLDOWN;
     $('hit-label').textContent='Var nhau';
-    document.querySelector('.yard-tools').hidden=!!me.sofaSeatId||!rack&&!canSweep&&!sweeping&&!me.hasBroom;
-    $('broom-hint').textContent=sweeping?'Dọn sân thêm sạch':me.hasBroom?'G / Var nhau: vung chổi phía trước · Trúng người mới mất 1 phước':canSweep?'Chạm để quét · +1 phước lành':'Chạm để lấy chổi trên giá';
+    document.querySelector('.yard-tools').hidden=!!me.sofaSeatId||!shop&&!rack&&!canSweep&&!sweeping&&!me.hasBroom;
+    $('broom-hint').textContent=shop?'Jerry bán nhang · Dùng phước quét lá để mua':sweeping?'Dọn sân thêm sạch':me.hasBroom?'G / Var nhau: vung chổi phía trước · Trúng người mới mất 1 phước':canSweep?'Chạm để quét · +1 phước lành':'Chạm để lấy chổi trên giá';
     if(me.hitStart&&now-me.hitStart*1000<HIT_DURATION)$('location-hint').textContent='Đang vung chổi về phía trước…';
+    if(me.knockdown&&now/1000-me.struckStart<me.knockdown)$('location-hint').textContent='Bị chổi quật té ngã… đang lồm cồm bò dậy';
     if(sweeping)$('location-hint').textContent='Đang quét lá…';
   }
   function takeBroom(){const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil)return;const rack=nearestRack(me);if(!rack){toast('Tới giá chổi gần cổng hoặc bên vườn để lấy chổi nhé.');return;}sendMove(true);socket.emit('broom',{rackId:rack.id,take:!me.hasBroom});}
   function sweepLeaves(){const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil)return;if(!me.hasBroom){toast('Tới giá chổi để lấy chổi trước nhé.');return;}const patch=nearestLeaves(me,leafPatches.values(),performance.now());if(!patch){toast('Tới gần đám lá dưới cây để quét nhé.');return;}target=null;clearMovement();sendMove(true);socket.emit('sweep',{patchId:patch.id});}
-  function hitBroom(){const me=players.get(myId),now=performance.now();if(!active||!me||!me.hasBroom||me.action!=='stand'||now<localBowUntil||now-lastHit<HIT_COOLDOWN)return;const model=view.models.get(myId);if(!model)return;const heading=model.root.rotation.y;target=null;clearMovement();sendMove(true);socket.emit('broom-hit',{heading});}
+  function hitBroom(){const me=players.get(myId),now=performance.now();if(!active||!me||!me.hasBroom||me.action!=='stand'||now<localBowUntil||now-lastHit<HIT_COOLDOWN)return;const model=view.models.get(myId);if(!model)return;const heading=model.yaw??model.root.rotation.y;target=null;clearMovement();sendMove(true);socket.emit('broom-hit',{heading});}
   $('broom-hit').onclick=hitBroom;
   $('broom-pickup').onclick=takeBroom;$('sweep-leaves').onclick=sweepLeaves;
   const movementKeys=['w','a','s','d','arrowup','arrowleft','arrowdown','arrowright'];
   document.addEventListener('keydown',e=>{
-    if(e.target.closest('input,textarea')||$('help-dialog').open||$('connection-dialog').open)return;
+    if(e.target.closest('input,textarea')||document.querySelector('dialog[open]'))return;
     const key=e.key.toLowerCase();if(key==='m'&&!e.repeat){e.preventDefault();toggleSound();return;}
     if(!active)return;
     if(movementKeys.includes(key)){e.preventDefault();if(performance.now()<localBowUntil)return;keys.add(key);target=null;}
@@ -256,6 +315,7 @@ import {findWalkingRoute} from './navigation.mjs';
   for(const type of ['gesturestart','gesturechange'])document.addEventListener(type,e=>{if(inGameSurface(e))e.preventDefault();},{passive:false});
   function walkTo(clientX,clientY){
     if(!active||performance.now()<localBowUntil)return;const hit=view.pick(clientX,clientY);if(!hit)return;
+    if(hit.incenseShop){goToIncenseShop();return;}
     let {x,y}=hit,sofaSeat=null;
     if(hit.sofaSeatId){const requested=window.SOFA_SEATS.find(s=>s.id===hit.sofaSeatId);sofaSeat=availableSofaSeats().filter(s=>s.sofaId===requested.sofaId).sort((a,b)=>Math.hypot(a.x-x,a.y-y)-Math.hypot(b.x-x,b.y-y))[0];if(!sofaSeat){toast('Ghế này đã đủ chỗ. Bạn chọn hàng ghế khác nhé.');return;}x=sofaSeat.approachX;y=sofaSeat.approachY;}
     const lotus=window.lotusAt(x,y);if(lotus){x=lotus.x;y=lotus.y;}
@@ -287,7 +347,7 @@ import {findWalkingRoute} from './navigation.mjs';
         if(now<localBowUntil||me.action!=='stand'){velocity.x=0;velocity.y=0;}
         dx=velocity.x*dt;dy=velocity.y*dt;
         const oldX=me.x,oldY=me.y;
-        if(target?.route.length===1&&Math.hypot(target.x-me.x,target.y-me.y)<=Math.max(2,Math.hypot(dx,dy))){me.x=target.x;me.y=target.y;const meditate=target.meditate,sofaSeatId=target.sofaSeatId;target=null;velocity.x=0;velocity.y=0;if(meditate){sendMove(true);action('sit');}else if(sofaSeatId)requestSofa(sofaSeatId);}
+        if(target?.route.length===1&&Math.hypot(target.x-me.x,target.y-me.y)<=Math.max(2,Math.hypot(dx,dy))){me.x=target.x;me.y=target.y;const meditate=target.meditate,sofaSeatId=target.sofaSeatId,incenseShop=target.incenseShop;target=null;velocity.x=0;velocity.y=0;if(meditate){sendMove(true);action('sit');}else if(sofaSeatId)requestSofa(sofaSeatId);else if(incenseShop)openIncenseShop();}
         else{if(validPosition(me.x+dx,me.y))me.x+=dx;else velocity.x=0;if(validPosition(me.x,me.y+dy))me.y+=dy;else velocity.y=0;}
         me.moving=Math.hypot(me.x-oldX,me.y-oldY)>.003;if(me.x!==oldX)me.face=me.x>oldX?1:-1;
         if(me.action==='bow'&&now>=localBowUntil){me.action='stand';updatePeople();}
@@ -297,12 +357,13 @@ import {findWalkingRoute} from './navigation.mjs';
         if(now-uiTimer>150){
           uiTimer=now;
           const near=Math.hypot(me.x-URN.x,me.y-URN.y)<=80,ownIncense=[...items.values()].filter(i=>i.owner===myId).length;
-          $('incense').disabled=!near||!!me.sofaSeatId||incensePending||now<localBowUntil||ownIncense>=3||items.size>=12;
+          $('incense').disabled=!(me.incenseSticks>0)||!near||!!me.sofaSeatId||incensePending||now<localBowUntil||ownIncense>=3||items.size>=12;
           $('sit').disabled=now<localBowUntil||sofaPending;$('bow').disabled=now<localBowUntil||!!me.sofaSeatId;
-          $('incense').title=near?'Thắp một nén hương (F)':'Lại gần lư hương trong chính điện';
+          $('incense').title=!(me.incenseSticks>0)?'Quét lá tích phước rồi mua nhang ở xe của Jerry':near?`Thắp một nén hương (F) · Còn ${me.incenseSticks} cây`:'Lại gần lư hương trong chính điện';
           const moveHint=view.mobile?'Kéo cần để di chuyển · Vuốt để nhìn quanh':'Kéo để xoay góc nhìn · WASD để đi · Chạm vào sân để bước đi';
-          $('location-hint').textContent=now<localBowUntil?(me.action==='bow'?(me.ritual?.kind==='incense'?'Đang dâng hương…':'Đang cúi lạy…'):me.action==='sit'?'Đang ngồi xuống…':'Đang đứng dậy…'):window.lotusAt(me.x,me.y)?(me.action==='sit'?'Thả lỏng trên lá sen · Lắng nghe mặt hồ':'Lá sen thiền · Bấm E hoặc Ngồi thiền'):near?(ownIncense>=3?'Bạn đã cắm 3 nén · Đợi hương tàn':items.size>=12?'Lư hương đã đầy':incensePending?'Đang chuẩn bị dâng hương…':'Có thể cắm nén tiếp theo · F / Thắp nhang'):moveHint;
+          $('location-hint').textContent=now<localBowUntil?(me.action==='bow'?(me.ritual?.kind==='incense'?'Đang dâng hương…':'Đang cúi lạy…'):me.action==='sit'?'Đang ngồi xuống…':'Đang đứng dậy…'):window.lotusAt(me.x,me.y)?(me.action==='sit'?'Thả lỏng trên lá sen · Lắng nghe mặt hồ':'Lá sen thiền · Bấm E hoặc Ngồi thiền'):near?(ownIncense>=3?'Bạn đã cắm 3 nén · Đợi hương tàn':!(me.incenseSticks>0)?'Chưa có nhang · Quét lá tích phước rồi ghé xe của Jerry':items.size>=12?'Lư hương đã đầy':incensePending?'Đang chuẩn bị dâng hương…':`Còn ${me.incenseSticks} cây nhang · F / Thắp nhang`):canVisitShop(me)?'Xe Bán nhang của Jerry · Bấm Mua nhang':moveHint;
           const nearbySeat=nearbySofaSeat(me),watching=window.WATCH_SEATS.some(s=>s.id===me.sofaSeatId);
+          $('location-hint').dataset.contextual=String(near||!!window.lotusAt(me.x,me.y)||watching||now<localBowUntil);
           $('sit-label').textContent=me.action==='sit'?'Đứng dậy':nearbySeat?.watching?'Ngắm pháo hoa':nearbySeat?'Ngồi sofa':'Ngồi thiền';$('sit').setAttribute('aria-pressed',String(me.action==='sit'));
           if(watching)$('location-hint').textContent=view.mobile?'Vuốt trái/phải để nhìn quanh · Đứng dậy để rời ghế':'Kéo chuột trái/phải để nhìn quanh · Đứng dậy để rời ghế';
           updateYardUI(me,now);

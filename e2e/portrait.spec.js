@@ -21,7 +21,10 @@ for(const size of [{width:320,height:568},{width:360,height:640},{width:390,heig
         expect(await page.evaluate(()=>document.body.scrollWidth)).toBe(size.width);
       };
       const actions=['#sit','#bow','#incense'];
-      await checkLayout([...actions,'#joystick','#settings-toggle','#chat-toggle','#leave','#share-link','#sound','#help']);
+      await checkLayout([...actions,'#joystick','#settings-toggle','#chat-toggle','#leave','#sound','#incense-guide','.blessing-panel']);
+      await expect(page.locator('#share-link')).toBeHidden();await expect(page.locator('#help')).toBeHidden();
+      await expect(page.locator('#location-hint')).toBeHidden();
+      await page.screenshot({path:`test-results/portrait-clean-${size.width}.png`});
       // Freeze the UI timer before showing the largest contextual tool group.
       const frozenTime=Date.now();
       await page.clock.install({time:frozenTime});await page.clock.pauseAt(frozenTime+1000);
@@ -32,11 +35,12 @@ for(const size of [{width:320,height:568},{width:360,height:640},{width:390,heig
         document.querySelector('.yard-tools').style.visibility='visible';
       });
       await checkLayout([...actions,'#joystick','#settings-toggle','.yard-tools']);
+      await page.screenshot({path:`test-results/portrait-tools-${size.width}.png`});
       await page.evaluate(()=>document.querySelector('.yard-tools').style.removeProperty('visibility'));
       await page.locator('#settings-toggle').tap();
       await expect(page.locator('.yard-tools')).toBeHidden();await expect(page.locator('#joystick')).toBeHidden();
       await expect(page.locator('#toast')).toBeHidden();
-      await checkLayout([...actions,'#camera-overhead','#camera-panorama','#camera-follow','#camera-in','#camera-out','#camera-reset','#time-of-day','#settings-toggle']);
+      await checkLayout([...actions,'#camera-overhead','#camera-panorama','#camera-follow','#camera-in','#camera-out','#camera-reset','#time-of-day','#settings-toggle','#share-link','#help']);
       await page.screenshot({path:`test-results/portrait-settings-${size.width}.png`});
       await page.locator('#camera-follow').tap();
       await expect(page.locator('#camera-follow')).toHaveAttribute('aria-pressed','true');

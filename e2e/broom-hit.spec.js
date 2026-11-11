@@ -28,13 +28,14 @@ for(const mobile of [false,true])test(`a held broom always offers a forward swin
     await expect(a.locator('#hit-label')).toHaveText('Var nhau');
     await pageHook(a);await touch(a,'#broom-hit');
     await expect.poll(()=>a.evaluate(()=>window.hitQA.self.hitStart>0)).toBe(true);
-    await expect.poll(()=>a.evaluate(()=>window.hitQA.samples.some(s=>s.age>.43)),{intervals:[30],timeout:2000}).toBe(true);
-    const samples=await a.evaluate(()=>window.hitQA.samples),high=samples.find(s=>s.age>=.12&&s.age<.24),low=samples.findLast(s=>s.age>.40);
-    const contact=samples.reduce((a,b)=>Math.abs(a.age-.30)<Math.abs(b.age-.30)?a:b);
+    await expect.poll(()=>a.evaluate(()=>window.hitQA.samples.some(s=>s.age>.52)),{intervals:[30],timeout:2000}).toBe(true);
+    const samples=await a.evaluate(()=>window.hitQA.samples),high=samples.reduce((a,b)=>a.y>b.y?a:b),low=samples.findLast(s=>s.age>.47);
+    const contact=samples.reduce((a,b)=>Math.abs(a.age-.36)<Math.abs(b.age-.36)?a:b);
     expect(high).toBeTruthy();expect(low).toBeTruthy();
-    expect(high.x).toBeLessThan(-.35);expect(high.y).toBeGreaterThan(.35);
-    expect(contact.z).toBeGreaterThan(.88);expect(Math.abs(contact.y)).toBeLessThan(.3);
-    expect(low.x).toBeGreaterThan(.35);expect(low.y).toBeLessThan(-.35);
+    // Cocked overhead before the hit, chopping forward at it, and down to the left after it.
+    expect(high.age).toBeLessThan(.36);expect(high.y).toBeGreaterThan(.6);
+    expect(contact.z).toBeGreaterThan(.7);expect(Math.abs(contact.y)).toBeLessThan(.65);
+    expect(low.x).toBeGreaterThan(.1);expect(low.y).toBeLessThan(-.35);
     expect(samples.every(s=>s.gripDistance<.01)).toBe(true);
     await expect(a.locator('#broom-hit')).toBeDisabled();
     await expect(a.locator('#toast')).toContainText('hụt');await expect(a.locator('#blessing-score')).toHaveText('0');
@@ -57,7 +58,12 @@ for(const mobile of [false,true])test(`a held broom always offers a forward swin
     await touch(a,'#broom-hit');
     await expect(a.locator('#blessing-score')).toHaveText('-1');
     await expect.poll(()=>a.evaluate(()=>window.hitQA.other.struckStart>0)).toBe(true);
+    // The struck visitor topples onto the paving, then gets back up.
+    const upright=()=>a.evaluate(()=>window.hitQA.view.models.get(window.hitQA.other.id).root.matrixWorld.elements[5]);
+    expect(await a.evaluate(()=>window.hitQA.other.knockdown)).toBeGreaterThan(1);
+    await expect.poll(upright,{intervals:[30],timeout:1500}).toBeLessThan(.3);
     await a.screenshot({path:`test-results/broom-hit-${mobile?'mobile':'desktop'}.png`});
+    await expect.poll(upright,{intervals:[50],timeout:4000}).toBeGreaterThan(.999);
     await b.bringToFront();await expect(b.locator('#blessing-score')).toHaveText('0');await expect(b.locator('#broom-hit')).not.toBeVisible();
     await pageHook(b);expect(await b.evaluate(()=>window.hitQA.other.blessings)).toBe(-1);
     const c=await context.newPage();pages.push(c);await c.goto('/');await c.locator('#next-button').click();await c.locator('#name').fill('Late');await touch(c,'#join-button');await pageHook(c);
@@ -68,14 +74,14 @@ for(const mobile of [false,true])test(`a held broom always offers a forward swin
 
 async function pageHook(page){
   await page.evaluate(async()=>{
-    const[{TempleView},{Vector3}]=await Promise.all([import('/scene3d.js'),import('three')]);await new Promise(resolve=>{
+    const[{TempleView},{Vector3},{BROOM_GRIP,BROOM_SCALE}]=await Promise.all([import('/scene3d.js'),import('three'),import('/broom-motion.mjs')]);await new Promise(resolve=>{
       const render=TempleView.prototype.render;TempleView.prototype.render=function(...args){
         render.apply(this,args);
         const self=args[1].find(p=>p.id===args[3]),previous=window.hitQA,samples=previous&&previous.strokeStart===self.hitStart?previous.samples:[];
         window.hitQA={view:this,players:args[1],self,other:args[1].find(p=>p.id!==args[3]),strokeStart:self.hitStart,samples};
         const age=args[0]-(self.hitStart??-100),broom=this.yardCare.carried.get(self.id),m=this.models.get(self.id);
-        if(broom&&m&&age>=.1&&age<=.5){
-          const grip=broom.localToWorld(new Vector3(0,1.35,0)),hand=m.wrists[0].localToWorld(new Vector3(0,-.08,.018));
+        if(broom&&m&&age>=.1&&age<=.58){
+          const grip=broom.localToWorld(new Vector3(0,BROOM_GRIP/BROOM_SCALE,0)),hand=m.wrists[0].localToWorld(new Vector3(0,-.08,.018));
           const direction=new Vector3(0,-1,0).applyQuaternion(broom.quaternion).applyAxisAngle(new Vector3(0,1,0),-self.hitHeading);
           samples.push({age,x:direction.x,y:direction.y,z:direction.z,gripDistance:grip.distanceTo(hand)});
         }

@@ -6,7 +6,8 @@ const { Server } = require('socket.io');
 const { validPosition,canWalkBetween,groundHeight,SOFA_SEATS,SOFA_REACH, URN, WORLD,WALK_BOUNDS } = require('./public/world');
 const AvatarConfig = require('./public/avatar-config');
 const {ROOM_CAPACITY}=require('./public/world');
-const {BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN,HIT_RANGE,HIT_DURATION,HIT_CONTACT,HIT_COOLDOWN}=require('./public/sweeping');
+const {INCENSE_SHOP,INCENSE_PACKS,nearIncenseShop}=require('./public/incense-shop');
+const {BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN,HIT_RANGE,HIT_DURATION,HIT_CONTACT,HIT_COOLDOWN,KNOCKDOWN_DURATION,KNOCKDOWN_GRACE}=require('./public/sweeping');
 
 function createTemple(options = {}) {
   const app = express();
@@ -21,7 +22,7 @@ function createTemple(options = {}) {
   const now = options.now || Date.now;
   const ttl = options.incenseTTL || 300000;
   let dirty = false;
-  const publicPlayer = p => ({ id: p.id, name: p.name, character: p.character, color: p.color, avatar: p.avatar, x: p.x, y: p.y, action: p.action,sofaSeatId:p.sofaSeatId,hasBroom:p.hasBroom,blessings:p.blessings });
+  const publicPlayer = p => ({ id: p.id, name: p.name, character: p.character, color: p.color, avatar: p.avatar, x: p.x, y: p.y, action: p.action,sofaSeatId:p.sofaSeatId,hasBroom:p.hasBroom,blessings:p.blessings,incenseSticks:p.incenseSticks });
   const publicIncense = i => ({ id: i.id, owner: i.owner, slot: i.slot, ttl: Math.max(0, i.expiresAt - now()) });
   const publicPatch=p=>({id:p.id,x:p.x,y:p.y,tree:p.tree,readyIn:Math.max(0,p.availableAt-now())});
   app.disable('x-powered-by');
@@ -45,7 +46,7 @@ function createTemple(options = {}) {
       const code=AvatarConfig.characterCode(input.characterCode);
       if(code&&!AvatarConfig.specialCharacter(code))return socket.emit('join-error','bad-character-code');
       const avatar = AvatarConfig.withCharacterCode(AvatarConfig.normalize(input.avatar, input.character, input.color),code);
-      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand',sofaSeatId:null, bowUntil: 0, spawn,hasBroom:false,blessings:0,sweepUntil:0,lastHit:-Infinity };
+      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand',sofaSeatId:null, bowUntil: 0, spawn,hasBroom:false,blessings:0,incenseSticks:0,sweepUntil:0,lastHit:-Infinity,downUntil:-Infinity };
       players.set(socket.id, p);
       socket.join('temple');
       socket.emit('joined', { id: p.id, players: [...players.values()].map(publicPlayer), incense: [...incense.values()].map(publicIncense),leaves:[...leafPatches.values()].map(publicPatch) });
@@ -101,6 +102,18 @@ function createTemple(options = {}) {
       p.x=seat.x;p.y=seat.y;p.sofaSeatId=seat.id;p.action='sit';p.bowUntil=time+500;
       io.to('temple').emit('sofa-changed',{id:p.id,x:p.x,y:p.y,sofaSeatId:seat.id,action:'sit'});dirty=true;
     });
+    socket.on('buy-incense',input=>{
+      const p=players.get(socket.id);if(!p)return;
+      const fail=code=>socket.emit('incense-shop-error',code),time=now();
+      const pack=INCENSE_PACKS.find(pack=>pack.id===input?.packId);
+      if(!pack)return fail('invalid');
+      if(p.action!=='stand'||p.sofaSeatId||p.bowUntil>time||p.sweepUntil>time)return fail('busy');
+      if(!nearIncenseShop(p)||!canWalkBetween(p.x,p.y,INCENSE_SHOP.approachX,INCENSE_SHOP.approachY))return fail('far');
+      if(p.blessings<pack.cost)return fail('blessings');
+      // Debit and grant together, using only the server's pack and balance.
+      p.blessings-=pack.cost;p.incenseSticks+=pack.sticks;
+      io.to('temple').emit('incense-purchased',{id:p.id,packId:pack.id,sticks:pack.sticks,cost:pack.cost,blessings:p.blessings,incenseSticks:p.incenseSticks});
+    });
     socket.on('plant-incense', () => {
       const p = players.get(socket.id);
       if (!p) return;
@@ -109,10 +122,11 @@ function createTemple(options = {}) {
       if (Math.hypot(p.x - URN.x, p.y - URN.y) > 80) return fail('far');
       if ([...incense.values()].filter(i => i.owner === p.id).length >= 3) return fail('limit');
       if (incense.size >= 12) return fail('full');
+      if(p.incenseSticks<1)return fail('no-incense');
       const slots = new Set([...incense.values()].map(i => i.slot));
       const item = { id: randomUUID(), owner: p.id, slot: Array.from({ length: 12 }, (_, i) => i).find(i => !slots.has(i)), expiresAt: now() + ttl };
-      incense.set(item.id, item); p.action = 'bow'; p.bowUntil = time + 1500;
-      io.to('temple').emit('incense-added', publicIncense(item)); dirty = true;
+      incense.set(item.id, item);p.incenseSticks--;p.action = 'bow'; p.bowUntil = time + 1500;
+      io.to('temple').emit('incense-added', {...publicIncense(item),remainingSticks:p.incenseSticks}); dirty = true;
     });
     socket.on('broom',input=>{
       const p=players.get(socket.id);if(!p)return;
@@ -146,9 +160,11 @@ function createTemple(options = {}) {
       // Resolve contact at the forward part of the swing, so another player can dodge.
       const timer=setTimeout(()=>{
         swingTimers.delete(timer);if(players.get(p.id)!==p)return;
-        let target=null,nearest=HIT_RANGE;
+        const contact=now();
+        // Knocked over mid-swing: the blow never lands.
+        let target=null,nearest=p.downUntil>contact?-1:HIT_RANGE;
         for(const other of players.values()){
-          if(other.id===p.id)continue;
+          if(other.id===p.id||other.downUntil+KNOCKDOWN_GRACE>contact)continue;
           const dx=other.x-p.x,dy=other.y-p.y,distance=Math.hypot(dx,dy);
           if(distance>nearest||dx*Math.sin(heading)+dy*Math.cos(heading)<distance*Math.SQRT1_2)continue;
           let clear=true;
@@ -159,7 +175,10 @@ function createTemple(options = {}) {
           if(clear){target=other;nearest=distance;}
         }
         if(target)p.blessings-=1;
-        io.to('temple').emit('broom-hit',{id:p.id,targetId:target?.id??null,blessings:p.blessings});
+        // Anyone not settled on a bench falls over: no moving, acting or swinging until they are up.
+        const knockdown=target&&!target.sofaSeatId?KNOCKDOWN_DURATION:0;
+        if(knockdown){target.downUntil=contact+knockdown;target.bowUntil=Math.max(target.bowUntil,target.downUntil);target.action='stand';dirty=true;}
+        io.to('temple').emit('broom-hit',{id:p.id,targetId:target?.id??null,blessings:p.blessings,heading,knockdown});
       },HIT_CONTACT);
       swingTimers.add(timer);
     });

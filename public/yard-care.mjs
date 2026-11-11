@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {makeLeafGeometry} from './garden.mjs';
 import {seededRandom} from './garden-layout.mjs';
-import {RIGHT_HAND,BROOM_GRIP} from './broom-motion.mjs';
+import {RIGHT_HAND,BROOM_GRIP,BROOM_SCALE} from './broom-motion.mjs';
 import {addNightLight,addLightPool} from './night-lights.mjs';
 import {ENTRANCE_LIGHTS} from './entrance-layout.mjs';
 
@@ -115,7 +115,7 @@ export class YardCare{
       broom.visible=!(p.id===myId&&first)&&p.action==='stand';if(!broom.visible)continue;
       const model=models.get(p.id);if(!model)continue;
       model.root.updateMatrixWorld(true);broom.position.set(0,-.08,.018);model.wrists[RIGHT_HAND].localToWorld(broom.position);
-      model.body.getWorldQuaternion(broom.quaternion);broom.quaternion.multiply(model.broomQuaternion||new THREE.Quaternion());broom.scale.setScalar(.7);
+      model.body.getWorldQuaternion(broom.quaternion);broom.quaternion.multiply(model.broomQuaternion||new THREE.Quaternion());broom.scale.setScalar(BROOM_SCALE);
       const grip=new THREE.Vector3(0,BROOM_GRIP,0).applyQuaternion(broom.quaternion);broom.position.sub(grip);
     }
   }

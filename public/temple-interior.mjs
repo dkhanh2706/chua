@@ -43,13 +43,6 @@ export function buildTempleInterior(parent){
   }
   box(doorway,0,openingTop+.12,frontZ,halfOpening*2+.9,.46,.88,wood);
   box(doorway,0,(openingTop+.35+HALL_CEILING)/2,frontZ,archHalf*2,HALL_CEILING-openingTop-.35,.52,'#743b2d');
-  box(doorway,0,11.15,frontZ+.34,7,.9,.15,wood);
-  const signCanvas=document.createElement('canvas');signCanvas.width=1024;signCanvas.height=128;
-  const signContext=signCanvas.getContext('2d');signContext.fillStyle=wood;signContext.fillRect(0,0,1024,128);
-  signContext.fillStyle=goldLight;signContext.font='54px Georgia, serif';signContext.textAlign='center';signContext.textBaseline='middle';signContext.fillText('CHÍNH ĐIỆN',512,68);
-  const signTexture=new THREE.CanvasTexture(signCanvas);signTexture.colorSpace=THREE.SRGBColorSpace;
-  const sign=new THREE.Mesh(new THREE.PlaneGeometry(6.8,.82),new THREE.MeshBasicMaterial({map:signTexture}));sign.name='main-hall-door-sign';sign.position.set(0,11.15,frontZ+.43);doorway.add(sign);
-  for(const y of [10.65,11.65])box(doorway,0,y,frontZ+.45,7.2,.1,.12,gold);
   // The threshold stays level with the hall floor so walking never catches on it.
   box(doorway,0,1.14,frontZ,halfOpening*2,.12,1,'#ba9d73');
   box(root,0,5.5,-26.42,16,7.7,.15,'#493527');

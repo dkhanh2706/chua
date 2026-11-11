@@ -22,7 +22,9 @@
     <link rel="stylesheet" href="/yard.css" />
     <link rel="stylesheet" href="/chat.css" />
     <link rel="stylesheet" href="/phone-ui.css" />
+    <link rel="stylesheet" href="/incense-shop.css" />
     <script src="/socket.io/socket.io.js" defer></script>
+    <script src="/incense-shop.js" defer></script>
     <script src="/world.js" defer></script>
     <script src="/sweeping.js" defer></script>
     <script src="/avatar-config.js" defer></script>
@@ -254,8 +256,9 @@
       </form>
     </dialog>
     <section id="game" hidden aria-label="Sân chùa">
+      <div class="player-supplies">
       <aside class="blessing-panel" aria-label="Điểm phước lành">
-        <span>✧ PHƯỚC LÀNH</span
+        <span>✧ <span class="blessing-long">PHƯỚC LÀNH</span><span class="blessing-short">Phước</span></span
         ><strong
           id="blessing-score"
           role="status"
@@ -264,7 +267,12 @@
           >0</strong
         ><small>Quét một đám lá · +1 điểm</small>
       </aside>
+      <button id="incense-guide" class="incense-inventory" title="Tới xe Bán nhang của Jerry" aria-label="Nhang mang theo: 0 cây. Tới xe Bán nhang của Jerry">
+        <span aria-hidden="true">♨</span><span>Nhang <strong id="incense-stock" aria-live="polite" aria-atomic="true">0</strong> cây</span><span aria-hidden="true">↗</span>
+      </button>
+      </div>
       <div class="yard-tools" role="group" aria-label="Thao tác gần bạn" hidden>
+        <button id="open-incense-shop" hidden disabled>Mua nhang</button>
         <button id="broom-pickup" hidden disabled>
           <span id="broom-label">Lấy chổi</span></button
         ><button id="sweep-leaves" hidden disabled>
@@ -435,10 +443,10 @@
         id="settings-toggle"
         class="settings-toggle"
         aria-expanded="false"
-        aria-label="Góc nhìn và tùy chọn"
+        aria-label="Tùy chọn: góc nhìn, mời bạn và hướng dẫn"
       >
         <span aria-hidden="true">☷</span
-        ><span class="settings-label">Góc nhìn</span>
+        ><span class="settings-label">Tùy chọn</span>
       </button>
       <div
         id="joystick"
@@ -483,6 +491,28 @@
       ><span>Cùng trò chuyện · Cùng chăm sân · Chỉ an yên</span>
     </footer>
     <div id="toast" role="status" aria-live="polite"></div>
+    <dialog id="incense-shop-dialog" aria-labelledby="incense-shop-title" aria-describedby="shop-intro">
+      <button class="dialog-close" data-close="incense-shop-dialog" aria-label="Đóng xe bán nhang">×</button>
+      <div class="shop-header">
+        <svg class="shop-mascot" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="22" cy="28" r="23" fill="#bb7d27"/><circle cx="78" cy="28" r="23" fill="#bb7d27"/>
+          <circle cx="22" cy="28" r="17" fill="#e5aa97"/><circle cx="78" cy="28" r="17" fill="#e5aa97"/>
+          <ellipse cx="50" cy="53" rx="31" ry="38" fill="#c99135"/>
+          <ellipse cx="39" cy="44" rx="8" ry="17" fill="#fff9e6"/><ellipse cx="61" cy="44" rx="8" ry="17" fill="#fff9e6"/>
+          <ellipse cx="40" cy="48" rx="4" ry="10" fill="#382a20"/><ellipse cx="60" cy="48" rx="4" ry="10" fill="#382a20"/>
+          <ellipse cx="50" cy="72" rx="14" ry="12" fill="#553020"/><path d="M42 70h16v5H42z" fill="#fff9e6"/>
+          <ellipse cx="40" cy="63" rx="14" ry="9" fill="#f0ce8c"/><ellipse cx="60" cy="63" rx="14" ry="9" fill="#f0ce8c"/>
+          <ellipse cx="50" cy="58" rx="8" ry="5" fill="#382a20"/>
+          <path d="m30 64-19-5m19 8-20 3m60-6 19-5m-19 8 20 3" stroke="#553b28" stroke-width="1.5" fill="none"/>
+        </svg>
+        <div><span class="eyebrow">XE NHANG CỦA JERRY</span><h2 id="incense-shop-title">Bán nhang</h2></div>
+      </div>
+      <p id="shop-intro">Quét lá tích phước, đổi một chút hương thơm.</p>
+      <div class="shop-wallet"><span>Phước <strong id="shop-blessings">0</strong></span><span>Nhang <strong id="shop-stock">0</strong> cây</span></div>
+      <div id="incense-packs" class="incense-packs" aria-label="Các gói nhang"></div>
+      <p id="shop-message" class="shop-message" role="status" aria-live="polite">Chọn gói nhang để mua.</p>
+      <p class="shop-note">Mỗi lần cắm dùng 1 cây. Nhang và phước được giữ trong lượt ghé chùa này.</p>
+    </dialog>
     <dialog id="help-dialog">
       <button class="dialog-close" data-close="help-dialog" aria-label="Đóng">
         ×</button
@@ -518,7 +548,11 @@
         </dd>
         <dt>F · Thắp nhang</dt>
         <dd>
-          Lại gần lư hương trong chính điện. Mỗi người tối đa 3 nén. Hoàn thành
+          Quét lá tích phước rồi ghé xe Bán nhang của Jerry ở bên phải lối vào.
+          1 cây giá 1 phước, 3 cây giá 3 phước, bó 6 cây giá 5 phước.
+          Lại gần xe và bấm Mua nhang; nút số nhang mang theo dẫn bạn đến xe.
+          Phải có nhang mới cắm được, mỗi lần dùng 1 cây.
+          Lại gần lư hương trong chính điện. Mỗi người tối đa 3 nén đang cháy. Hoàn thành
           động tác dâng hương khoảng 1,5 giây là có thể cắm nén tiếp theo ngay.
           Bấm từng lần, không nhận thêm trong lúc đang cắm.
         </dd>
@@ -541,7 +575,7 @@
         <dt>↗ · Mời bạn</dt>
         <dd>
           Sao chép link website để mời bạn. Tối đa 6 người vào cùng một sân và
-          gặp nhau ngay.
+          gặp nhau ngay. Trên điện thoại, mở Tùy chọn rồi bấm Mời bạn.
         </dd>
       </dl>
       <button class="primary" data-close="help-dialog">

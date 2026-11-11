@@ -2,10 +2,15 @@ import * as THREE from 'three';
 import { createAvatarMotion,advanceAvatarMotion } from './avatar-motion.mjs';
 import { createTomFaceTexture } from './tom-face.mjs';
 import {addDoraemonDetails,drawDoraemonPortrait} from './doraemon-details.mjs';
+import { createHumanAvatar,drawHumanPortrait } from './human-avatar.mjs';
 
 // Each arm/leg is one continuous surface, deformed by its connected bones.
 // Blended skin weights keep elbows and knees smooth throughout the animation.
 export function createAvatar(appearance){
+  if(!['tom','doraemon'].includes(appearance.special)){
+    const model=createHumanAvatar(appearance);
+    poseAvatar(model,{action:'stand'},0,1);model.motion.nextBlink=null;return model;
+  }
   const tom=appearance.special==='tom',doraemon=appearance.special==='doraemon',cartoon=tom||doraemon;
   const a=cartoon?{...appearance,gender:'male',shirt:'short',pants:'straight',shoes:'slipon',hair:'bald',necklace:false,hairAccessory:'none'}:appearance;
   const c=doraemon?{...a.colors,shirt:'#008dcc',pants:'#008dcc',skin:'#f7faf6',shoes:'#f7faf6'}:tom?{...a.colors,shirt:'#77858b',pants:'#77858b',skin:'#f3f0df',shoes:'#f3f0df'}:a.colors,root=new THREE.Group(),geometries=new Map(),materials=new Map();
@@ -208,19 +213,22 @@ export function poseAvatar(model,player,time,dt){
   const {sit,bow,prayer,incense,reach,moveBlend,phase,breath}=motion;
   model.seatedOnSofa=!!player.sofaSeatId||!!model.seatedOnSofa&&sit>0;
   const damp=(value,target)=>THREE.MathUtils.damp(value,target,22,Math.min(dt,.1));
-  model.body.position.y=.72+breath*.007*(1-bow);
+  // A broom blow leans the torso for one frame only; take it out before damping.
+  model.body.rotation.x-=model.strikeLean||0;model.strikeLean=0;
+  model.body.position.y=(model.rig?.hipHeight??.72)+breath*.007*(1-bow);
   model.body.rotation.x=damp(model.body.rotation.x,bow*1.12-moveBlend*.035);
   model.body.rotation.z=Math.sin(phase)*moveBlend*.025*(1-sit);
   model.head.rotation.x=-sit*.05+bow*.08;
   model.head.rotation.z=Math.sin(phase)*moveBlend*-.015;
   model.eyes.forEach(eye=>eye.scale.y=Math.max(.045,motion.blink));
   model.shirt.rotation.z=Math.sin(phase+.4)*moveBlend*.018;
+  model.garments?.forEach(piece=>{piece.morphTargetInfluences[0]=sit;});
   model.hair.rotation.x=Math.sin(phase)*moveBlend*.012;
   if(model.tail)model.tail.rotation.y=Math.sin(time*2)*.15+Math.sin(phase)*moveBlend*.18;
   const clasp=Math.max(sit,prayer);
   model.arms.forEach((arm,i)=>{
     const side=i===0?-1:1,swing=Math.sin(phase+i*Math.PI)*moveBlend;
-    const relaxedArm=(model.appearance.special==='tom'||model.appearance.special==='doraemon')?side*.12:-side*.08;
+    const relaxedArm=model.rig?side*.035:side*.12;
     arm.rotation.set(.04+swing*.4*(1-clasp),0,relaxedArm);
     const armPose=model.seatedOnSofa?model.sofaArms[i]:model.seatedArms[i];
     arm.quaternion.slerp(armPose.upper,sit);
@@ -231,11 +239,12 @@ export function poseAvatar(model,player,time,dt){
       // pole keeps the forearms folded neatly without crossing the centerline.
       const wrist=model.wrists[i],elbow=model.elbows[i],down=new THREE.Vector3(0,-1,0);
       const target=new THREE.Vector3(side*.105,.55+incense*.05-reach*.08,.35+reach*.14);
-      const delta=target.clone().sub(arm.position),distance=THREE.MathUtils.clamp(delta.length(),.06,.625),axis=delta.normalize();
+      const upperLength=model.rig?.armUpper??.34,lowerLength=model.rig?.armLower??.29;
+      const delta=target.clone().sub(arm.position),distance=THREE.MathUtils.clamp(delta.length(),Math.abs(upperLength-lowerLength)+.005,upperLength+lowerLength-.005),axis=delta.normalize();
       target.copy(arm.position).addScaledVector(axis,distance);
-      const along=(.34**2-.29**2+distance**2)/(2*distance);
+      const along=(upperLength**2-lowerLength**2+distance**2)/(2*distance);
       const pole=new THREE.Vector3(side*.8,-1,.1);pole.addScaledVector(axis,-pole.dot(axis)).normalize();
-      const joint=arm.position.clone().addScaledVector(axis,along).addScaledVector(pole,Math.sqrt(Math.max(0,.34**2-along**2)));
+      const joint=arm.position.clone().addScaledVector(axis,along).addScaledVector(pole,Math.sqrt(Math.max(0,upperLength**2-along**2)));
       const upper=new THREE.Quaternion().setFromUnitVectors(down,joint.clone().sub(arm.position).normalize());
       const lower=new THREE.Quaternion().setFromUnitVectors(down,target.sub(joint).normalize());
       arm.quaternion.slerp(upper,prayer);elbow.quaternion.slerp(upper.clone().invert().multiply(lower),prayer);
@@ -254,7 +263,7 @@ export function poseAvatar(model,player,time,dt){
   // planted foot stays on the floor instead of clipping when knees bend.
   model.root.updateMatrixWorld(true);model.inverseRoot.copy(model.root.matrixWorld).invert();let floor=Infinity;
   for(const foot of model.footMeshes){model.footMatrix.multiplyMatrices(model.inverseRoot,foot.matrixWorld);const e=model.footMatrix.elements;floor=Math.min(floor,e[13]-Math.hypot(e[1],e[5],e[9]));}
-  model.postureOffset=model.seatedOnSofa?THREE.MathUtils.lerp(-floor,model.appearance.special==='doraemon'?-(.72-.39*.83):-.595,sit):-floor;
+  model.postureOffset=model.seatedOnSofa?THREE.MathUtils.lerp(-floor,model.rig?-model.rig.seatOffset:model.appearance.special==='doraemon'?-(.72-.39*.83):-.595,sit):-floor;
   model.shadow.position.y=.012-model.postureOffset;model.shadow.scale.set(1+sit*.3,1+sit*.3,1);
   model.heldIncense.visible=incense>.03&&motion.progress<.84;
   model.heldIncense.position.set(0,.59+incense*.05-reach*.08,.41+reach*.14);
@@ -264,7 +273,7 @@ export function poseAvatar(model,player,time,dt){
 export function disposeAvatar(model){
   model.root.removeFromParent();
   const textures=new Set(),geometries=new Set(),materials=new Set(),skeletons=new Set();
-  model.root.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.skeleton)skeletons.add(o.skeleton);if(o.material)for(const material of Array.isArray(o.material)?o.material:[o.material]){materials.add(material);if(material.map)textures.add(material.map);}});
+  model.root.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.skeleton)skeletons.add(o.skeleton);if(o.material)for(const material of Array.isArray(o.material)?o.material:[o.material]){materials.add(material);for(const value of Object.values(material))if(value?.isTexture)textures.add(value);}});
   textures.forEach(t=>t.dispose());geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());skeletons.forEach(s=>s.dispose());
 }
 
@@ -278,11 +287,6 @@ export function drawPortrait(canvas,a){
     for(const x of [23,37]){c.fillStyle='#e4e89c';c.beginPath();c.ellipse(x,30,6,10,0,0,Math.PI*2);c.fill();c.fillStyle='#25342c';c.fillRect(x-1,25,2,12);c.fillStyle='#f3f0df';c.beginPath();c.ellipse(x,43,9,6,0,0,Math.PI*2);c.fill();}
     c.fillStyle='#27353c';c.beginPath();c.ellipse(30,39,4,3,0,0,Math.PI*2);c.fill();c.restore();return;
   }
-  c.fillStyle=a.colors.shirt;c.beginPath();c.ellipse(30,65,20,22,0,0,Math.PI*2);c.fill();
-  c.fillStyle=a.colors.skin;c.beginPath();c.ellipse(30,30,17,21,0,0,Math.PI*2);c.fill();
-  if(a.hair!=='bald'){c.fillStyle=a.colors.hair;c.beginPath();c.ellipse(30,15,18,10,0,Math.PI,Math.PI*2);c.lineTo(48,24);c.quadraticCurveTo(33,9,13,24);c.fill();if(['long','bob','braids','ponytail'].includes(a.hair)){c.fillRect(12,18,5,24);c.fillRect(44,18,5,24);}}
-  c.fillStyle='#443b32';for(const x of [24,36]){c.beginPath();c.ellipse(x,31,1.5,2,0,0,Math.PI*2);c.fill();}
-  c.strokeStyle='#a46e59';c.lineWidth=1;c.beginPath();c.arc(30,36,4,0,Math.PI);c.stroke();
-  if(a.gender==='female'&&a.hairAccessory!=='none'){c.fillStyle=a.colors.hairAccessory;c.beginPath();c.ellipse(43,18,7,3,-.3,0,Math.PI*2);c.fill();}
+  drawHumanPortrait(c,a);
   c.restore();
 }

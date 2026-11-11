@@ -1,5 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { io } = require('socket.io-client');
+const {earnAndBuyIncense}=require('./helpers/incense');
 test('welcome, multiplayer, keyboard, incense, capacity and leaving', async ({ browser }) => {
   test.setTimeout(120000);
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -12,6 +13,7 @@ test('welcome, multiplayer, keyboard, incense, capacity and leaving', async ({ b
   }
   const page=pages[0];await expect(page.locator('#players li')).toHaveCount(6);
   await page.bringToFront();await page.locator('#canvas').focus();await page.keyboard.press('e');await expect(page.locator('#sit-label')).toHaveText('Đứng dậy');
+  await earnAndBuyIncense(page,'single');
   await page.keyboard.down('w');try{await expect(page.locator('#incense')).toBeEnabled({timeout:20000});}finally{await page.keyboard.up('w');}await expect(page.locator('#sit')).toHaveAttribute('aria-pressed','false');
   await expect(page.locator('#incense')).toBeEnabled({timeout:3000});await page.locator('#incense').click();await expect(page.locator('#incense-count')).toContainText('1');await expect(pages[1].locator('#incense-count')).toContainText('1');
   await page.waitForTimeout(450);
@@ -32,7 +34,7 @@ test('mobile entry, touch movement, help and sound controls', async ({ browser }
   await expect(page.locator('#camera-overhead')).toHaveAttribute('aria-pressed','true');await page.locator('#settings-toggle').tap();await page.locator('#camera-panorama').tap();await page.locator('#settings-toggle').tap();
   await page.waitForTimeout(800);const box=await page.locator('#canvas').boundingBox();await page.touchscreen.tap(box.x+box.width*.5,box.y+box.height*.55);await expect(page.locator('#sit-label')).toHaveText('Ngồi thiền');
   await page.locator('#sit').tap();const pad=await page.locator('#joystick').boundingBox();await page.mouse.move(pad.x+pad.width/2,pad.y+pad.height/2-30);await page.mouse.down();await expect(page.locator('#sit-label')).toHaveText('Ngồi thiền');await page.mouse.up();
-  await page.waitForTimeout(1200);await page.locator('#help').tap();await expect(page.locator('#help-dialog')).toBeVisible();await page.getByRole('button',{name:'Mình hiểu rồi'}).tap();await page.locator('#sound').tap();await page.screenshot({path:'test-results/mobile-game.png',fullPage:true});
+  await page.waitForTimeout(1200);await page.locator('#settings-toggle').tap();await page.locator('#help').tap();await expect(page.locator('#help-dialog')).toBeVisible();await page.getByRole('button',{name:'Mình hiểu rồi'}).tap();await page.locator('#sound').tap();await page.screenshot({path:'test-results/mobile-game.png',fullPage:true});
   await expect(page.locator('body')).toHaveJSProperty('scrollWidth',390);await context.close();
 });
 test('connection loss offers a working rejoin', async ({ browser }) => {
@@ -75,6 +77,7 @@ for(const mobile of [false,true])test(`close overhead camera shows the complete 
     });
     const standing=await state();expect(standing.visible).toBe(true);expect(standing.height).toBeGreaterThan(4);expect(standing.height).toBeLessThan(6);
     await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.copiedInvite=text;}}}));
+    if(mobile)await page.locator('#settings-toggle').tap();
     await page.locator('#share-link').click();expect(await page.evaluate(()=>window.copiedInvite)).toBe('http://127.0.0.1:3001/');
     for(const p of standing.bounds){expect(Math.abs(p.x)).toBeLessThan(.95);expect(Math.abs(p.y)).toBeLessThan(.95);expect(p.z).toBeLessThan(1);}
     const turns=await page.evaluate(()=>{

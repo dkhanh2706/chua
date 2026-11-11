@@ -1,0 +1,43 @@
+.incense-inventory{position:absolute;z-index:3;top:230px;left:30px;display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:160px;min-height:46px;padding:9px 16px;border:1px solid #ffffffb3;border-radius:12px;background:#faf7eaf2;color:#6c7959;backdrop-filter:blur(12px);font-size:12px;box-shadow:0 6px 24px #26371c0d}
+.incense-inventory>span:first-child{font-size:22px}.incense-inventory strong{color:#866837;font-size:17px;margin:0 4px}.incense-inventory:hover{background:#fff9e7;border-color:#c9b77c}
+#incense-shop-dialog{width:560px;padding:32px;max-height:calc(var(--visual-height,100dvh) - 24px);overflow-y:auto;overscroll-behavior:contain}
+#incense-shop-dialog .dialog-close{width:44px;height:44px;right:8px;top:8px;display:grid;place-items:center}
+.shop-header{display:flex;gap:18px;align-items:center;padding-right:20px}.shop-header h2{font-size:34px;margin:3px 0 0;line-height:1.2}.shop-header .eyebrow{font-size:9px;letter-spacing:1.7px}.shop-mascot{width:76px;height:76px;flex-shrink:0;padding:5px;border-radius:50%;background:#ece5cc;border:1px solid #d8cba5}
+#shop-intro{margin:18px 0;color:#7c816b;font-size:12px}.shop-wallet{display:flex;flex-wrap:wrap;gap:8px 20px;padding:12px 15px;background:#e8ecde;border:1px solid #d8deca;border-radius:10px;font-size:12px;color:#647455}.shop-wallet strong{color:#7b663d;font-size:17px}
+.incense-packs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:20px 0 0}.incense-pack{position:relative;display:flex;flex-direction:column;align-items:center;gap:7px;border:1px solid #d6dcc9;border-radius:12px;background:#fcfaf1;padding:18px 8px 12px;color:#536545;min-height:192px;transition:background .15s,border-color .15s}
+.incense-pack:hover:enabled{border-color:#8c9b72;background:#f1f3e6}.incense-pack:disabled{cursor:not-allowed;background:#eeeee5;color:#8c927e}.incense-pack:disabled .pack-buy{background:#dedfd3;color:#7f846e}.pack-name{font-size:13px}.pack-quantity{font-size:10px;color:#8d937e}.pack-buy{margin-top:auto;width:100%;padding:8px 3px;border-radius:7px;background:#657751;color:#fff8e3;font-size:11px}.pack-saving{position:absolute;right:6px;top:7px;border-radius:5px;background:#ead7a3;color:#78602c;padding:2px 5px;font-size:8px}
+.pack-sticks{height:54px;display:flex;align-items:flex-end;justify-content:center;gap:4px;margin-bottom:4px;min-width:46px}.pack-sticks i{width:3px;height:48px;border-radius:2px;background:linear-gradient(#665440 0 12%,#be7f56 12% 76%,#e4c07a 76%);transform:rotate(calc((var(--i) - var(--middle))*3deg));transform-origin:bottom}.incense-pack:has(.pack-saving) .pack-sticks{position:relative}.incense-pack:has(.pack-saving) .pack-sticks:after{content:'';position:absolute;width:42px;height:5px;bottom:12px;background:#8e6044;border-radius:2px}
+#shop-message{min-height:36px;margin:15px 0 0;font-size:12px;color:#637650;line-height:1.6}#incense-shop-dialog .shop-note{border-top:1px solid #e0dfcd;padding-top:12px;margin:12px 0 0;color:#90947e;font-size:10px;line-height:1.6}
+body.playing:has(#canvas[data-watching-fireworks="true"]) .incense-inventory{visibility:hidden}
+@media(max-width:800px),(pointer:coarse){
+ .incense-inventory{top:calc(126px + env(safe-area-inset-top,0px));left:calc(12px + env(safe-area-inset-left,0px));min-width:132px;min-height:44px;padding:6px 12px;gap:8px;border-radius:24px;font-size:11px;box-shadow:none}.incense-inventory>span:first-child{font-size:20px}.incense-inventory strong{font-size:16px}
+ #incense-shop-dialog{width:calc(100% - 24px);max-width:500px;padding:24px 18px;border-radius:20px}.shop-header{gap:12px}.shop-header h2{font-size:29px}.shop-mascot{width:64px;height:64px}.shop-header .eyebrow{font-size:8px;letter-spacing:1px}.shop-wallet{font-size:11px;padding:10px 12px;gap:5px 12px}.incense-packs{gap:7px;margin-top:16px}.incense-pack{padding:23px 5px 10px;min-height:183px}.pack-name{font-size:12px}.pack-buy{min-height:44px;display:grid;place-items:center;font-size:11px}.pack-saving{font-size:8px;right:4px;top:5px}
+}
+@media(max-height:550px){.incense-inventory{top:145px;left:16px;min-height:44px}#incense-shop-dialog{padding:20px}.shop-mascot{height:48px;width:48px}.shop-header h2{font-size:26px}.incense-pack{min-height:148px}.pack-sticks{height:36px}.pack-sticks i{height:33px}}
+@media(max-width:800px),(pointer:coarse){
+ body.playing .player-supplies .incense-inventory{position:static;pointer-events:auto;min-width:0;min-height:44px;padding:7px 12px;gap:6px;white-space:nowrap;backdrop-filter:none;-webkit-backdrop-filter:none;font-size:12px}
+ body.playing .player-supplies .incense-inventory strong{margin:0 2px}
+ #incense-shop-dialog{padding:16px;max-width:500px}
+ .shop-header{gap:10px;min-height:48px;padding-right:32px}.shop-mascot{width:48px;height:48px;padding:3px}.shop-header h2{font-size:27px}.shop-header .eyebrow{font-size:8px;letter-spacing:.8px}
+ #shop-intro{display:none}.shop-wallet{margin-top:12px;justify-content:space-between;gap:8px;padding:8px 12px;font-size:13px}
+ .incense-packs{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+ .incense-pack{display:grid;grid-template-columns:32px minmax(0,1fr) 92px;grid-template-rows:auto auto;column-gap:10px;row-gap:0;min-height:68px;padding:9px 10px;text-align:left}
+ .pack-sticks{grid-column:1;grid-row:1/4;align-self:center;min-width:0;height:42px;gap:2px;margin:0}.pack-sticks i{height:38px;width:3px}
+ .pack-name{grid-column:2;grid-row:1;align-self:end;font-size:14px;line-height:1.4}
+ .pack-quantity{grid-column:2;grid-row:2;align-self:start;font-size:12px;line-height:1.5;color:#748068}
+ .incense-pack:disabled{color:#59664d}.incense-pack:disabled .pack-buy{color:#58634c;background:#dedfd3}
+ .pack-quantity{color:#66735b}.shop-wallet{color:#526344}
+ .pack-buy{grid-column:3;grid-row:1/4;align-self:center;width:92px;height:44px;min-height:44px;margin:0;padding:8px 4px;font-size:12px;white-space:nowrap;text-align:center}
+ .pack-saving{position:static;grid-column:2;grid-row:3;padding:1px 0 0;background:none;font-size:10px;line-height:1.3;white-space:nowrap}
+ .incense-pack:has(.pack-saving) .pack-sticks:after{width:30px;height:4px;bottom:11px}
+ #shop-message{min-height:0;margin-top:12px;font-size:12px;line-height:1.5}
+ #incense-shop-dialog .shop-note{padding-top:8px;margin-top:10px;font-size:11px;line-height:1.5;color:#6c755f}
+}
+@media(orientation:landscape) and (max-height:550px) and (pointer:coarse){
+ #incense-shop-dialog[open]{display:grid;grid-template-columns:minmax(155px,.75fr) minmax(270px,1.4fr);column-gap:18px;width:min(720px,calc(100% - 24px));max-width:none;align-items:start}
+ .shop-header{grid-column:1;grid-row:1;padding-right:0;gap:8px}.shop-header h2{font-size:24px}.shop-mascot{width:40px;height:40px}.shop-header .eyebrow{font-size:7px}
+ .shop-wallet{grid-column:1;grid-row:2;margin-top:8px;font-size:12px;padding:7px 10px}
+ .incense-packs{grid-column:2;grid-row:1/5;margin-top:34px}
+ #shop-message{grid-column:1;grid-row:3}.shop-note{grid-column:1;grid-row:4}
+ .incense-pack{min-height:64px;padding:7px 9px}.pack-name{font-size:13px}
+}

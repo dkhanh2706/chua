@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {seededRandom} from './garden-layout.mjs';
 import {buildPondStonework} from './pond-stonework.mjs';
+import {waterWaveGLSL} from './water-waves.mjs';
 
 const TAU=Math.PI*2;
 const material=(color,extra={})=>new THREE.MeshStandardMaterial({color,roughness:.65,...extra});
@@ -27,22 +28,25 @@ export class LotusPond{
     const bed=this.part(this.root,new THREE.CircleGeometry(1,96),material('#ffffff',{map:bedMap,emissive:'#247b87',emissiveIntensity:0}),0,.012,0,13.4,8.6,1);bed.rotation.x=-Math.PI/2;bed.receiveShadow=true;this.bed=bed;
     const water=new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uTime:this.time,uNight:this.night},side:THREE.DoubleSide,
       vertexShader:`uniform float uTime;varying vec3 vWorld;varying vec2 vLocal;
-        void main(){vec3 p=position;vLocal=p.xy;p.z+=sin(p.x*1.8+uTime*.8)*sin(p.y*2.1-uTime*.65)*.012;
+        ${waterWaveGLSL}
+        void main(){vec3 p=position;vLocal=p.xy;
+        vec3 world=(modelMatrix*vec4(p,1.)).xyz;
+        p.z+=waterWaves(world.xz*1.7,uTime*.65).x*.08*(1.-smoothstep(.75,1.,length(vLocal)));
         vWorld=(modelMatrix*vec4(p,1.)).xyz;gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.);}`,
       fragmentShader:`uniform float uTime;uniform float uNight;varying vec3 vWorld;varying vec2 vLocal;
+        ${waterWaveGLSL}
         void main(){vec2 p=vWorld.xz;float t=uTime;
-          float a=sin(p.x*1.35+p.y*.73-t*.66)+sin(p.x*3.1-p.y*1.2+t*.43)*.25;
-          float b=sin(p.y*1.7-p.x*.56+t*.48)+sin(p.y*3.6+p.x*.9-t*.62)*.22;
-          vec3 n=normalize(vec3(a*.038,1.,b*.033));vec3 view=normalize(cameraPosition-vWorld);
+          vec3 waves=waterWaves(p*1.7,t*.65);
+          float shoreFade=1.-smoothstep(.75,1.,length(vLocal));
+          vec3 n=normalize(vec3(-waves.y*.136*shoreFade,1.,-waves.z*.136*shoreFade));vec3 view=normalize(cameraPosition-vWorld);
           float fresnel=pow(1.-max(dot(n,view),0.),3.);
           float edge=smoothstep(.72,1.,length(vLocal));
           vec3 color=mix(vec3(.025,.29,.46),vec3(.15,.59,.69),edge);
           vec3 reflected=reflect(-view,n);float cloud=sin(reflected.x*5.+sin(reflected.z*4.+t*.025))*.5+.5;
           vec3 sky=mix(vec3(.37,.64,.61),vec3(.74,.88,.94),smoothstep(.0,.8,reflected.y));sky+=cloud*.035;
           color=mix(color,sky,fresnel*.65);
-          float glint=pow(max(0.,sin(p.x*2.1+p.y*.6-t*.8+sin(p.y*1.8)*.7)),28.);
-          float sparkle=pow(max(dot(reflect(normalize(vec3(-.45,-1.,-.3)),n),view),0.),120.);
-          color+=vec3(.73,.91,.90)*glint*.025+vec3(.97,.98,.90)*sparkle*.3;
+          float sparkle=pow(max(dot(n,normalize(normalize(vec3(-.45,1.,-.3))+view)),0.),180.);
+          color+=vec3(.97,.98,.90)*sparkle*.3;
           color*=mix(vec3(1.),vec3(.32,.46,.66),uNight);
           float underwaterGlow=exp(-dot(vLocal,vLocal)*1.8);
           color+=vec3(.035,.20,.22)*underwaterGlow*uNight;
@@ -51,7 +55,7 @@ export class LotusPond{
           #include <colorspace_fragment>
         }`});
     // Circle vertices stay in unit space; the mesh scale shapes the elliptical shoreline.
-    this.water=this.part(this.root,new THREE.CircleGeometry(1,96),water,0,.235,0,13.4,8.6,1);this.water.rotation.x=-Math.PI/2;this.water.name='shimmering-pond-water';
+    this.water=this.part(this.root,new THREE.RingGeometry(0,1,96,12),water,0,.235,0,13.4,8.6,1);this.water.rotation.x=-Math.PI/2;this.water.name='shimmering-pond-water';
     buildPondStonework(this.root,window.POND_STEPS);
     const dummy=new THREE.Object3D();
     const pebbles=new THREE.InstancedMesh(this.sphere,material('#729b8f'),24);
@@ -113,10 +117,18 @@ export class LotusPond{
     });
   }
   buildRipples(){
-    const geo=new THREE.RingGeometry(.96,1,64);
+    const geo=new THREE.RingGeometry(.94,1,64);
+    for(let i=0;i<geo.attributes.uv.count;i++)geo.attributes.uv.setXY(i,(i%65)/64,Math.floor(i/65));
     for(let i=0;i<12;i++){
       const a=this.random()*TAU,r=this.random()*.8;
-      const ring=this.part(this.root,geo,new THREE.MeshBasicMaterial({color:'#d7f4ff',transparent:true,opacity:0,depthWrite:false,side:THREE.DoubleSide}),Math.cos(a)*12*r,.256,Math.sin(a)*7*r);ring.rotation.x=-Math.PI/2;
+      const rippleMaterial=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,uniforms:{uOpacity:{value:0},uNight:this.night},
+        vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+        fragmentShader:`uniform float uOpacity;uniform float uNight;varying vec2 vUv;
+          void main(){float edge=sin(vUv.y*3.14159);float broken=.55+.45*sin(vUv.x*37.+sin(vUv.x*19.)*2.);
+            gl_FragColor=vec4(mix(vec3(.72,.88,.87),vec3(.22,.35,.46),uNight),edge*edge*broken*uOpacity);
+            #include <colorspace_fragment>
+          }`});
+      const ring=this.part(this.root,geo,rippleMaterial,Math.cos(a)*12*r,.261,Math.sin(a)*7*r);ring.rotation.x=-Math.PI/2;
       this.ripples.push({ring,phase:i/12});
     }
   }
@@ -133,6 +145,6 @@ export class LotusPond{
       f.g.position.set(x,.12+Math.sin(time*.9+i)*.018,z);f.g.rotation.y=Math.atan2(-dz,dx);
       f.tail.rotation.y=Math.sin(time*3.1+i)*.32;f.g.rotation.z=Math.sin(time*1.2+i)*.008;f.fins.forEach((fin,j)=>fin.rotation.y=(j?1:-1)*(.55+Math.sin(time*2.1+i)*.17));
     });
-    this.ripples.forEach(({ring,phase})=>{const age=(time*.14+phase)%1;ring.scale.setScalar(.15+age*1.7);ring.material.opacity=Math.sin(age*Math.PI)*.15;});
+    this.ripples.forEach(({ring,phase})=>{const age=(time*.14+phase)%1;ring.scale.setScalar(.15+age*1.7);ring.material.uniforms.uOpacity.value=Math.sin(age*Math.PI)*Math.pow(1-age,1.5)*.14;});
   }
 }

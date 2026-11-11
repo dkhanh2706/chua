@@ -7,6 +7,7 @@ import { buildTempleInterior,HALL_CEILING } from './temple-interior.mjs';
 import { YardCare } from './yard-care.mjs';
 import { LotusPond } from './lotus-pond.mjs';
 import {broomStrike,applyBroomPose} from './broom-motion.mjs';
+import {knockdown,applyKnockdown,createDizzyStars,updateDizzyStars,HitBursts} from './knockdown.mjs';
 import {DayNightCycle} from './night-lights.mjs';
 import {IncenseSmoke} from './incense-smoke.mjs';
 import {GardenBoundary} from './garden-boundary.mjs';
@@ -16,6 +17,7 @@ import {constrainHallCamera} from './hall-camera.mjs';
 import {CameraObstacles} from './camera-obstacles.mjs';
 import {MoonGarden} from './moon-garden.mjs';
 import {Seaside} from './seaside.mjs';
+import {IncenseCart} from './incense-cart.mjs';
 
 const { WORLD, URN, riverX, groundHeight } = window;
 const TAU=Math.PI*2;
@@ -120,6 +122,8 @@ export class TempleView {
     this.entrance=buildEntranceGate(s,{roof});this.gateRoof=this.entrance.roofs;
     this.garden=new TempleGarden(s,{batterySaver:this.mobile&&this.quality==='balanced',groundHeight});
     this.yardCare=new YardCare(s,this.garden,groundHeight);
+    this.incenseCart=new IncenseCart(s,window.TempleIncense.INCENSE_SHOP);
+    this.hitBursts=new HitBursts(s);
     this.cycle.collect();
     // Incense target ring appears when the player chooses a destination.
     this.destination=mesh(s,new THREE.RingGeometry(.45,.55,40),new THREE.MeshBasicMaterial({color:'#fff1bc',transparent:true,opacity:.8,side:THREE.DoubleSide}),0,.2,0);this.destination.rotation.x=-Math.PI/2;this.destination.visible=false;
@@ -154,7 +158,7 @@ export class TempleView {
   setTimeOfDay(mode){this.cycle.setMode(mode);}
   updateShadows(pos,time,players){
     if(!this.mobile)return;
-    const animated=players.some(p=>p.moving||p.action==='bow'||['sit_down','sit_up'].includes(this.models.get(p.id)?.motionOutput.name)||time-(p.hitStart??-100)<.65||time-(p.struckStart??-100)<.65||time-(p.sweepStart??-100)<.9);
+    const animated=players.some(p=>p.moving||p.action==='bow'||['sit_down','sit_up'].includes(this.models.get(p.id)?.motionOutput.name)||time-(p.hitStart??-100)<.8||time-(p.struckStart??-100)<(p.knockdown||.65)||time-(p.sweepStart??-100)<.9);
     const interval=animated?0:1/12;
     if(time-(this.lastShadowUpdate??-Infinity)<interval)return;
     this.lastShadowUpdate=time;
@@ -180,6 +184,8 @@ export class TempleView {
       const floor=this.ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-height),new THREE.Vector3());
       if(floor&&Math.abs(groundHeight(floor.x*10+500,floor.z*10+350)-height)<.05)floorDistance=Math.min(floorDistance,this.ray.ray.origin.distanceTo(floor));
     }
+    const shop=this.incenseCart&&this.ray.intersectObject(this.incenseCart.root,true).find(hit=>hit.distance<=floorDistance+.05);
+    if(shop){const s=window.TempleIncense.INCENSE_SHOP;return{x:s.approachX,y:s.approachY,incenseShop:true};}
     const indoor=this.interior&&this.ray.intersectObject(this.interior.seats,true)[0];
     const outdoor=this.moonGarden&&this.ray.intersectObject(this.moonGarden.seats,true).find(hit=>hit.distance<=floorDistance+.05);
     const sofa=outdoor&&(!indoor||outdoor.distance<indoor.distance)?outdoor:indoor;
@@ -190,15 +196,17 @@ export class TempleView {
   }
   project(x,y){const v=position(x,y).add(new THREE.Vector3(0,.1,0)).project(this.camera),rect=this.canvas.getBoundingClientRect();return{x:rect.left+(v.x+1)*rect.width/2,y:rect.top+(1-v.y)*rect.height/2};}
   syncPlayers(players,myId,t,dt){
-    const ids=new Set(players.map(p=>p.id));for(const[id,m]of this.models)if(!ids.has(id)){disposeAvatar(m);this.models.delete(id);}
+    const ids=new Set(players.map(p=>p.id));for(const[id,m]of this.models)if(!ids.has(id)){m.dizzy?.removeFromParent();disposeAvatar(m);this.models.delete(id);}
     for(const p of players){
       const appearance=window.AvatarConfig.normalize(p.avatar,p.character,p.color),signature=JSON.stringify(appearance);
       let model=this.models.get(p.id);
-      if(!model||model.signature!==signature){if(model)disposeAvatar(model);model=createGameAvatar(this.worldRoot,{...p,avatar:appearance,isMe:p.id===myId});model.root.position.copy(position(p.x,p.y,t));this.models.set(p.id,model);}
+      if(!model||model.signature!==signature){if(model){model.dizzy?.removeFromParent();disposeAvatar(model);}model=createGameAvatar(this.worldRoot,{...p,avatar:appearance,isMe:p.id===myId});model.root.position.copy(position(p.x,p.y,t));this.models.set(p.id,model);}
       const pos=position(p.x,p.y,t),dx=pos.x-model.root.position.x,dz=pos.z-model.root.position.z;
       if(p.sofaSeatId)pos.y=window.SOFA_SEATS.find(s=>s.id===p.sofaSeatId)?.height??window.SOFA_SEAT_HEIGHT;
       // Preserve the visible facing, including a turn still easing to its destination.
-      if((p.action==='sit'||p.action==='bow')&&p.action!==model.lastPoseAction)model.motion.heading=model.root.rotation.y;
+      // The root's own yaw is unreadable while it lies tilted on the ground.
+      if(!model.tilted)model.yaw=model.root.rotation.y;
+      if((p.action==='sit'||p.action==='bow')&&p.action!==model.lastPoseAction)model.motion.heading=model.yaw;
       model.lastPoseAction=p.action;
       poseAvatar(model,p,t,dt);
       model.body.rotation.y=0;
@@ -206,12 +214,16 @@ export class TempleView {
         applyBroomPose(model,p,t);
       }
       const strike=broomStrike(t,p.hitStart),striking=!!strike;
-      const struckAge=t-(p.struckStart??-100);if(struckAge>=0&&struckAge<.65)model.body.rotation.z+=Math.sin(struckAge/.65*Math.PI)*.16;
+      // A seated visitor only flinches; anyone on their feet is knocked over.
+      const struckAge=t-(p.struckStart??-100),fall=knockdown(struckAge,p.knockdown);
+      if(!fall&&struckAge>=0&&struckAge<.65)model.body.rotation.z+=Math.sin(struckAge/.65*Math.PI)*.16;
+      if(p.struckStart!==model.lastStruck){model.lastStruck=p.struckStart;if(struckAge>=0&&struckAge<.2)this.hitBursts.burst(new THREE.Vector3(pos.x,pos.y+1.15,pos.z),p.fallHeading??0,t);}
       model.heading=model.motionOutput.heading;
       if(p.sofaSeatId)model.heading=window.SOFA_SEATS.find(s=>s.id===p.sofaSeatId)?.heading??model.heading;
       if(striking)model.heading=p.hitHeading??model.heading;
-      const delta=THREE.MathUtils.euclideanModulo(model.heading-model.root.rotation.y+Math.PI,TAU)-Math.PI;
-      model.root.rotation.y+=delta*Math.min(1,dt*12);
+      const delta=THREE.MathUtils.euclideanModulo(model.heading-model.yaw+Math.PI,TAU)-Math.PI;
+      if(!fall)model.yaw+=delta*Math.min(1,dt*12);
+      model.root.rotation.set(0,model.yaw,0);
       if(model.seatedOnSofa)model.root.position.lerp(pos.clone().add(new THREE.Vector3(0,model.postureOffset,0)),1-Math.exp(-dt*14));else model.root.position.set(pos.x,pos.y+model.postureOffset,pos.z);
       if(p.id===myId&&model.motionOutput.stepCount>(model.playedSteps||0)){
         const bridge=p.y>475&&p.y<535&&Math.abs(p.x-riverX(p.y))<62;
@@ -219,7 +231,11 @@ export class TempleView {
         this.canvas.dispatchEvent(new CustomEvent('avatar-step',{detail:{surface:window.onCoast(p.x,p.y)?'sand':bridge?'wood':stone?'stone':'grass'}}));
       }
       model.playedSteps=model.motionOutput.stepCount;
-      model.label.position.y=p.action==='sit'?2.75:p.action==='bow'?2.3:3.1;
+      model.label.position.set(0,p.action==='sit'?2.75:p.action==='bow'?2.3:3.1,0);model.shadow.visible=true;
+      if(fall)applyKnockdown(model,fall,p.fallHeading??model.yaw+Math.PI,model.yaw,p.hasBroom&&p.action==='stand');
+      if(fall?.dazed){model.dizzy??=createDizzyStars(this.worldRoot);model.root.updateMatrixWorld(true);updateDizzyStars(model.dizzy,model.head,t);}
+      if(model.dizzy)model.dizzy.visible=!!fall?.dazed;
+      model.tilted=!!fall;
       model.root.visible=true;model.label.material.depthTest=true;
     }
   }
@@ -250,7 +266,7 @@ export class TempleView {
     const offset=new THREE.Vector3(Math.sin(this.yaw)*Math.cos(orbitPitch)*r,Math.sin(orbitPitch)*r,Math.cos(this.yaw)*Math.cos(orbitPitch)*r);
     const cameraTarget=desired.clone().add(offset);
     if(watching){
-      desired.set(this.mobile?-26:-19,this.mobile?4:5,20);
+      desired.set(this.mobile?-26:-19,this.mobile?5:6,20);
       cameraTarget.set(-35,this.mobile?22:14,this.mobile?-40:-24);
       desired.sub(cameraTarget).applyAxisAngle(new THREE.Vector3(0,1,0),this.watchYaw).add(cameraTarget);
     }
@@ -283,7 +299,7 @@ export class TempleView {
     this.skyDisc.visible=!showActive;
     this.landscape.update(time);
     this.pond.update(time);
-    this.garden.update(time);this.coast.update(time);
+    this.garden.update(time);this.coast.update(time);this.incenseCart.update(time);this.hitBursts.update(time,dt);
     this.yardCare.update(time,players,this.models,myId,false);
     this.destination.visible=!!target;if(target){const pos=position(target.x,target.y);this.destination.position.copy(pos).add(new THREE.Vector3(0,.18,0));this.destination.scale.setScalar(1+Math.sin(time*4)*.12);}
     this.updateShadows(pos,time,players);
