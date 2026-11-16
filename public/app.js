@@ -7,7 +7,7 @@ import {findWalkingRoute} from './navigation.mjs';
   const sound=new TempleSound();
   let muted=false;try{muted=localStorage.getItem('temple-muted')==='true';}catch{}
   let socket=null,myId=null,active=false,joining=false;
-  let target=null,lastFrame=performance.now(),lastSent=0,lastPosition=null,localBowUntil=0,incensePending=false,sofaPending=false,lastHit=-Infinity;
+  let target=null,lastFrame=performance.now(),lastSent=0,lastPosition=null,localBowUntil=0,incensePending=false,sofaPending=false,lastHit=-Infinity,lastZap=-Infinity;
   let toastTimer,pendingJoin,joinTimer,uiTimer=0;
   let unread=0,chatPending=false;
   let purchasePending=null;
@@ -42,7 +42,7 @@ import {findWalkingRoute} from './navigation.mjs';
   window.visualViewport?.addEventListener('resize',fitPhoneViewport);
   window.visualViewport?.addEventListener('scroll',fitPhoneViewport);
   const players=new Map(),items=new Map(),keys=new Set(),leafPatches=new Map();
-  const {nearestRack,nearestLeaves,SWEEP_DURATION,HIT_DURATION,HIT_COOLDOWN}=window.TempleSweeping;
+  const {nearestRack,nearestLeaves,SWEEP_DURATION,HIT_DURATION,HIT_COOLDOWN,ZAP_RANGE,ZAP_COOLDOWN,KNOCKDOWN_GRACE}=window.TempleSweeping;
   const {INCENSE_SHOP,INCENSE_PACKS,nearIncenseShop}=window.TempleIncense;
   const joystickInput={x:0,y:0,pointer:null,bounds:null};
   const velocity={x:0,y:0};
@@ -142,7 +142,7 @@ import {findWalkingRoute} from './navigation.mjs';
     socket.on('chat-error',code=>{chatPending=false;$('chat-send').disabled=false;$('chat-error').textContent=code==='rate-limit'?'Bạn gửi hơi nhanh. Chờ một chút rồi gửi lại nhé.':'Tin nhắn cần có từ 1 đến 300 ký tự.';});
     socket.on('joined',data=>{
       myId=data.id;players.clear();items.clear();for(const p of data.players)players.set(p.id,{...p,tx:p.x,ty:p.y});for(const item of data.incense)items.set(item.id,{...item,end:performance.now()+item.ttl});
-      active=true;setJoining(false);$('entry-dialog').close();target=null;clearMovement();lastPosition=null;localBowUntil=0;incensePending=false;sofaPending=false;lastHit=-Infinity;purchasePending=null;$('incense-shop-dialog').close();updateIncenseUI(players.get(myId));
+      active=true;setJoining(false);$('entry-dialog').close();target=null;clearMovement();lastPosition=null;localBowUntil=0;incensePending=false;sofaPending=false;lastHit=-Infinity;lastZap=-Infinity;purchasePending=null;$('incense-shop-dialog').close();updateIncenseUI(players.get(myId));
       gameHost.prepend(gameCanvas);document.body.classList.add('playing');view.setActive(true);setCamera('overhead');
       leafPatches.clear();for(const patch of data.leaves||[])leafPatches.set(patch.id,{...patch,readyAt:performance.now()+patch.readyIn});
       view.yardCare.setPatches([...leafPatches.values()]);updateYardUI(players.get(myId),performance.now());
@@ -187,7 +187,7 @@ import {findWalkingRoute} from './navigation.mjs';
       const p=players.get(data.id),other=players.get(data.targetId),now=performance.now();if(!p)return;
       p.blessings=data.blessings;
       if(other){
-        other.struckStart=now/1000;other.fallHeading=data.heading;other.knockdown=(data.knockdown||0)/1000;
+        other.struckStart=now/1000;other.struckKind='broom';other.shockStart=null;other.fallHeading=data.heading;other.knockdown=(data.knockdown||0)/1000;
         // A knocked-down visitor drops whatever they were doing, including their own swing.
         if(data.knockdown){other.hitStart=null;other.sweepStart=null;other.action='stand';other.ritual=null;other.moving=false;}
       }
@@ -197,6 +197,25 @@ import {findWalkingRoute} from './navigation.mjs';
       if(other&&data.knockdown)updatePeople();
     });
     socket.on('hit-error',code=>toast({broom:'Bạn cần cầm chổi trước.',busy:'Đợi hoàn thành động tác nhé.',cooldown:'Chờ một chút trước khi vung tiếp.',direction:'Hãy quay về hướng muốn vung chổi.'}[code]||'Chưa thể vung chổi.'));
+    socket.on('stungun-changed',data=>{
+      const p=players.get(data.id);if(!p)return;p.hasStunGun=data.hasStunGun;
+      if(data.id===myId){updateYardUI(p,performance.now());toast(p.hasStunGun?'Đã cầm cây chích điện. Lại gần ai đó rồi bấm Chích.':'Đã cất cây chích điện.');}
+    });
+    socket.on('zap-hit',data=>{
+      const p=players.get(data.id),other=players.get(data.targetId),now=performance.now();if(!p)return;
+      p.blessings=data.blessings;p.zapStart=now/1000;p.zapHeading=data.heading;
+      if(data.id===myId){lastZap=now;updateYardUI(p,now);}
+      if(other){
+        other.struckStart=now/1000;other.struckKind='zap';other.fallHeading=data.heading;other.knockdown=(data.knockdown||0)/1000;other.shockStart=now/1000;other.shockDuration=data.shock/1000;
+        // A zapped visitor drops whatever they were doing, including their own swing or zap.
+        if(data.knockdown){other.hitStart=null;other.zapStart=null;other.sweepStart=null;other.action='stand';other.ritual=null;other.moving=false;}
+      }
+      if(data.targetId===myId&&data.knockdown){localBowUntil=Math.max(localBowUntil,now+data.knockdown);target=null;clearMovement();incensePending=false;}
+      if(data.id===myId)toast(other?`Chích điện trúng ${other.name} · −2 phước lành`:'Chích hụt');
+      else if(data.targetId===myId)toast(`${p.name} chích điện bạn · Giật mình nằm 2 giây rồi dậy nhé`);
+      if(other&&data.knockdown)updatePeople();
+    });
+    socket.on('zap-error',code=>toast({gun:'Bạn cần cầm cây chích điện trước.',busy:'Đợi hoàn thành động tác nhé.',cooldown:'Chờ một chút trước khi chích tiếp.',far:'Lại gần người cần chích hơn nhé.',down:'Người này đang nằm, chưa chích được.'}[code]||'Chưa thể chích điện.'));
     socket.on('incense-error',code=>{incensePending=false;toast({far:'Lại gần lư hương trong chính điện nhé.',busy:'Hoàn thành động tác rồi cắm nén tiếp theo nhé.',limit:'Bạn đang có 3 nén hương. Hãy đợi hương tàn.',full:'Lư hương đã đầy. Hãy đợi một chút nhé.','no-incense':'Bạn hết nhang rồi. Quét lá tích phước và mua nhang ở xe của Jerry nhé.'}[code]||'Chưa thể thắp nhang.');});
     socket.on('disconnect',reason=>{sound.setInGame(false);sound.setEnabled(false);incensePending=false;sofaPending=false;purchasePending=null;$('incense-shop-dialog').close();clearMovement();target=null;if(active){active=false;$('connection-dialog').showModal();}if(joining){setJoining(false);$('join-error').textContent='Kết nối bị gián đoạn. Bạn thử vào lại nhé.';}});
     socket.on('connect_error',()=>{if(joining){setJoining(false);$('join-error').textContent='Chưa kết nối được với sân chùa. Bạn thử lại nhé.';}});
@@ -256,12 +275,28 @@ import {findWalkingRoute} from './navigation.mjs';
     $('sweep-leaves').hidden=!canSweep&&!sweeping;$('sweep-leaves').disabled=!canSweep||busy;$('sweep-label').textContent=sweeping?'Đang quét…':'Quét lá';
     $('broom-hit').hidden=!me.hasBroom;$('broom-hit').disabled=!me.hasBroom||busy||now-lastHit<HIT_COOLDOWN;
     $('hit-label').textContent='Var nhau';
-    document.querySelector('.yard-tools').hidden=!!me.sofaSeatId||!shop&&!rack&&!canSweep&&!sweeping&&!me.hasBroom;
-    $('broom-hint').textContent=shop?'Jerry bán nhang · Dùng phước quét lá để mua':sweeping?'Dọn sân thêm sạch':me.hasBroom?'G / Var nhau: vung chổi phía trước · Trúng người mới mất 1 phước':canSweep?'Chạm để quét · +1 phước lành':'Chạm để lấy chổi trên giá';
+    const zapTarget=me.hasStunGun&&!busy?nearestZapTarget(me,now):null;
+    $('stungun-toggle').setAttribute('aria-pressed',String(!!me.hasStunGun));$('stungun-label').textContent=me.hasStunGun?'Cất chích điện':'Chích điện';$('stungun-toggle').disabled=busy;
+    $('zap-hit').hidden=!zapTarget;$('zap-hit').disabled=!zapTarget||now-lastZap<ZAP_COOLDOWN;
+    document.querySelector('.yard-tools').hidden=!!me.sofaSeatId||!shop&&!rack&&!canSweep&&!sweeping&&!me.hasBroom&&!zapTarget;
+    $('broom-hint').textContent=shop?'Jerry bán nhang · Dùng phước quét lá để mua':sweeping?'Dọn sân thêm sạch':me.hasStunGun?'Lại gần ai đó để hiện nút Chích · Trúng người mất 2 phước':me.hasBroom?'G / Var nhau: vung chổi phía trước · Trúng người mới mất 1 phước':canSweep?'Chạm để quét · +1 phước lành':'Chạm để lấy chổi trên giá';
     if(me.hitStart&&now-me.hitStart*1000<HIT_DURATION)$('location-hint').textContent='Đang vung chổi về phía trước…';
     if(me.knockdown&&now/1000-me.struckStart<me.knockdown)$('location-hint').textContent='Bị chổi quật té ngã… đang lồm cồm bò dậy';
     if(sweeping)$('location-hint').textContent='Đang quét lá…';
   }
+  // Nearest visitor within arm's reach who is not already lying on the ground.
+  function nearestZapTarget(me,now){
+    let best=null,distance=ZAP_RANGE;
+    for(const other of players.values()){
+      if(other.id===me.id)continue;
+      if(other.knockdown&&now/1000-other.struckStart<other.knockdown+KNOCKDOWN_GRACE/1000)continue;
+      const d=Math.hypot(other.x-me.x,other.y-me.y);if(d<=distance){best=other;distance=d;}
+    }
+    return best;
+  }
+  function toggleStunGun(){const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil||me.action!=='stand')return;sendMove(true);socket.emit('stungun',{take:!me.hasStunGun});}
+  function zap(){const me=players.get(myId),now=performance.now();if(!active||!me||!me.hasStunGun||me.action!=='stand'||now<localBowUntil||now-lastZap<ZAP_COOLDOWN)return;const other=nearestZapTarget(me,now);if(!other){toast('Lại gần người cần chích hơn nhé.');return;}target=null;clearMovement();sendMove(true);socket.emit('zap',{targetId:other.id});}
+  $('stungun-toggle').onclick=toggleStunGun;$('zap-hit').onclick=zap;
   function takeBroom(){const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil)return;const rack=nearestRack(me);if(!rack){toast('Tới giá chổi gần cổng hoặc bên vườn để lấy chổi nhé.');return;}sendMove(true);socket.emit('broom',{rackId:rack.id,take:!me.hasBroom});}
   function sweepLeaves(){const me=players.get(myId);if(!active||!me||performance.now()<localBowUntil)return;if(!me.hasBroom){toast('Tới giá chổi để lấy chổi trước nhé.');return;}const patch=nearestLeaves(me,leafPatches.values(),performance.now());if(!patch){toast('Tới gần đám lá dưới cây để quét nhé.');return;}target=null;clearMovement();sendMove(true);socket.emit('sweep',{patchId:patch.id});}
   function hitBroom(){const me=players.get(myId),now=performance.now();if(!active||!me||!me.hasBroom||me.action!=='stand'||now<localBowUntil||now-lastHit<HIT_COOLDOWN)return;const model=view.models.get(myId);if(!model)return;const heading=model.yaw??model.root.rotation.y;target=null;clearMovement();sendMove(true);socket.emit('broom-hit',{heading});}

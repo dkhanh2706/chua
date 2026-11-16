@@ -270,6 +270,9 @@
       <button id="incense-guide" class="incense-inventory" title="Tới xe Bán nhang của Jerry" aria-label="Nhang mang theo: 0 cây. Tới xe Bán nhang của Jerry">
         <span aria-hidden="true">♨</span><span>Nhang <strong id="incense-stock" aria-live="polite" aria-atomic="true">0</strong> cây</span><span aria-hidden="true">↗</span>
       </button>
+      <button id="stungun-toggle" class="stungun-toggle" type="button" aria-pressed="false" title="Cầm hoặc cất cây chích điện">
+        <span aria-hidden="true">⚡</span><span id="stungun-label">Chích điện</span>
+      </button>
       </div>
       <div class="yard-tools" role="group" aria-label="Thao tác gần bạn" hidden>
         <button id="open-incense-shop" hidden disabled>Mua nhang</button>
@@ -284,6 +287,13 @@
           title="Vung chổi về phía trước (G) · Trúng người mới mất 1 phước lành"
         >
           <span id="hit-label">Var nhau</span></button
+        ><button
+          id="zap-hit"
+          hidden
+          disabled
+          title="Chích điện người đứng gần · Người chích mất 2 phước lành"
+        >
+          <span id="zap-label">⚡ Chích</span></button
         ><span id="broom-hint"></span>
       </div>
       <div class="game-heading">
@@ -571,6 +581,14 @@
           trước. Chỉ khi chạm người, người vung chổi mới mất 1 phước lành; vung
           hụt không mất điểm. Người kia có thể né và không cần cầm chổi. Không
           đánh xuyên vật cản.
+        </dd>
+        <dt>⚡ · Chích điện</dt>
+        <dd>
+          Bấm ô Chích điện để cầm hoặc cất cây chích điện (cầm chích điện thì
+          chổi tự cất, và ngược lại). Khi lại gần ai đó sẽ hiện nút Chích. Chích
+          trúng, người chích mất 2 phước lành; người bị chích bị điện giật, ngã
+          xuống rồi tự đứng dậy sau 2 giây, trong lúc đó không thể di chuyển,
+          chích hay đánh lại.
         </dd>
         <dt>↗ · Mời bạn</dt>
         <dd>

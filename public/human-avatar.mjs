@@ -796,6 +796,59 @@ export function createHumanAvatar(appearance) {
       "skin",
       "lower-lip",
     );
+  // Crying face for a shocked visitor: squeezed "> <" eyes, a quivering open
+  // frown and streaming tears. Hidden until scene code switches it on.
+  const shockFace = (() => {
+    const group_ = group(head),
+      ink = mix(c.hair, "#1c1512", 0.6),
+      tears = [];
+    group_.name = "shock-face";
+    group_.visible = false;
+    for (const side of [-1, 1]) {
+      const socket = faceGroup(side * 0.098, -0.008, 0.004);
+      group_.add(socket);
+      line(
+        socket,
+        [
+          [side * 0.034, 0.028, 0],
+          [-side * 0.03, 0, 0],
+          [side * 0.034, -0.028, 0],
+        ],
+        ink,
+        0.0066,
+        "hair",
+        "squint",
+      );
+      for (let k = 0; k < 2; k++) {
+        const tear = ellipsoid(socket, 0, -0.03, 0.004, 0.0085, 0.0125, 0.007, "#8fd8ff", "skin", "tear");
+        tear.userData = { side, k };
+        tears.push(tear);
+      }
+    }
+    const pivotY = -0.16,
+      pz = faceZ(0, pivotY),
+      mouth = group(group_, 0, pivotY, pz);
+    line(
+      mouth,
+      [
+        [-0.048, -0.014],
+        [-0.032, 0.01],
+        [0, 0.019],
+        [0.032, 0.01],
+        [0.048, -0.014],
+      ].map(([x, y]) => [x, y, faceZ(x, y + pivotY) - pz + 0.005]),
+      "#7a2e3a",
+      0.0085,
+      "skin",
+      "cry-mouth",
+    );
+    ellipsoid(mouth, 0, -0.004, faceZ(0, pivotY - 0.004) - pz + 0.004, 0.028, 0.0095, 0.004, "#4a1620", "skin", "cry-mouth-open");
+    const hide = [...eyes];
+    head.traverse((o) => {
+      if (["mouth", "lower-lip", "closed-lid"].includes(o.name)) hide.push(o);
+    });
+    return { group: group_, hide, mouth, tears, on: false };
+  })();
   head.add(hair);
   hair.name = "hair";
 
@@ -2005,6 +2058,7 @@ export function createHumanAvatar(appearance) {
     garments,
     hair,
     eyes,
+    shockFace,
     tail: null,
     arms,
     elbows,

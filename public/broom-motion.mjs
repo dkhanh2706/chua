@@ -49,14 +49,14 @@ export function strikePose(strike,rest){
   };
 }
 
-const armLengths=model=>[model.rig?.armUpper??.34,model.rig?.armLower??.29];
+export const armLengths=model=>[model.rig?.armUpper??.34,model.rig?.armLower??.29];
 // Keep a body-local hand target inside the arm's reach.
-function reachable(model,target){
+export function reachable(model,target){
   const [upper,lower]=armLengths(model),shoulder=model.arms[RIGHT_HAND].position,delta=target.clone().sub(shoulder);
   return shoulder.clone().addScaledVector(delta.clone().normalize(),THREE.MathUtils.clamp(delta.length(),Math.abs(upper-lower)+.005,upper+lower-.005));
 }
 
-function solveRightArm(model,target){
+export function solveRightArm(model,target){
   const arm=model.arms[RIGHT_HAND],elbow=model.elbows[RIGHT_HAND];
   const [upperLength,lowerLength]=armLengths(model);
   target=reachable(model,target);

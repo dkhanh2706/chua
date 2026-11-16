@@ -15,6 +15,7 @@ body.playing:has(#canvas[data-watching-fireworks="true"]) .incense-inventory{vis
 }
 @media(max-height:550px){.incense-inventory{top:145px;left:16px;min-height:44px}#incense-shop-dialog{padding:20px}.shop-mascot{height:48px;width:48px}.shop-header h2{font-size:26px}.incense-pack{min-height:148px}.pack-sticks{height:36px}.pack-sticks i{height:33px}}
 @media(max-width:800px),(pointer:coarse){
+ body.playing .player-supplies .stungun-toggle{position:static;pointer-events:auto;min-width:0;min-height:44px;padding:7px 12px;gap:6px;white-space:nowrap;backdrop-filter:none;-webkit-backdrop-filter:none;font-size:12px;border-radius:24px;box-shadow:none}
  body.playing .player-supplies .incense-inventory{position:static;pointer-events:auto;min-width:0;min-height:44px;padding:7px 12px;gap:6px;white-space:nowrap;backdrop-filter:none;-webkit-backdrop-filter:none;font-size:12px}
  body.playing .player-supplies .incense-inventory strong{margin:0 2px}
  #incense-shop-dialog{padding:16px;max-width:500px}

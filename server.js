@@ -7,7 +7,7 @@ const { validPosition,canWalkBetween,groundHeight,SOFA_SEATS,SOFA_REACH, URN, WO
 const AvatarConfig = require('./public/avatar-config');
 const {ROOM_CAPACITY}=require('./public/world');
 const {INCENSE_SHOP,INCENSE_PACKS,nearIncenseShop}=require('./public/incense-shop');
-const {BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN,HIT_RANGE,HIT_DURATION,HIT_CONTACT,HIT_COOLDOWN,KNOCKDOWN_DURATION,KNOCKDOWN_GRACE}=require('./public/sweeping');
+const {BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN,HIT_RANGE,HIT_DURATION,HIT_CONTACT,HIT_COOLDOWN,KNOCKDOWN_DURATION,KNOCKDOWN_GRACE,ZAP_RANGE,ZAP_COOLDOWN,ZAP_DURATION,ZAP_COST}=require('./public/sweeping');
 
 function createTemple(options = {}) {
   const app = express();
@@ -22,7 +22,7 @@ function createTemple(options = {}) {
   const now = options.now || Date.now;
   const ttl = options.incenseTTL || 300000;
   let dirty = false;
-  const publicPlayer = p => ({ id: p.id, name: p.name, character: p.character, color: p.color, avatar: p.avatar, x: p.x, y: p.y, action: p.action,sofaSeatId:p.sofaSeatId,hasBroom:p.hasBroom,blessings:p.blessings,incenseSticks:p.incenseSticks });
+  const publicPlayer = p => ({ id: p.id, name: p.name, character: p.character, color: p.color, avatar: p.avatar, x: p.x, y: p.y, action: p.action,sofaSeatId:p.sofaSeatId,hasBroom:p.hasBroom,hasStunGun:p.hasStunGun,blessings:p.blessings,incenseSticks:p.incenseSticks });
   const publicIncense = i => ({ id: i.id, owner: i.owner, slot: i.slot, ttl: Math.max(0, i.expiresAt - now()) });
   const publicPatch=p=>({id:p.id,x:p.x,y:p.y,tree:p.tree,readyIn:Math.max(0,p.availableAt-now())});
   app.disable('x-powered-by');
@@ -46,7 +46,7 @@ function createTemple(options = {}) {
       const code=AvatarConfig.characterCode(input.characterCode);
       if(code&&!AvatarConfig.specialCharacter(code))return socket.emit('join-error','bad-character-code');
       const avatar = AvatarConfig.withCharacterCode(AvatarConfig.normalize(input.avatar, input.character, input.color),code);
-      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand',sofaSeatId:null, bowUntil: 0, spawn,hasBroom:false,blessings:0,incenseSticks:0,sweepUntil:0,lastHit:-Infinity,downUntil:-Infinity };
+      const p = { id: socket.id, name, character: avatar.gender === 'female' ? 1 : 0, color: avatar.colors.shirt, avatar, x: 450 + spawn * 25, y: 605, action: 'stand',sofaSeatId:null, bowUntil: 0, spawn,hasBroom:false,hasStunGun:false,lastZap:-Infinity,blessings:0,incenseSticks:0,sweepUntil:0,lastHit:-Infinity,downUntil:-Infinity };
       players.set(socket.id, p);
       socket.join('temple');
       socket.emit('joined', { id: p.id, players: [...players.values()].map(publicPlayer), incense: [...incense.values()].map(publicIncense),leaves:[...leafPatches.values()].map(publicPatch) });
@@ -134,6 +134,37 @@ function createTemple(options = {}) {
       if(typeof input?.take!=='boolean'||!rack||Math.hypot(p.x-rack.x,p.y-rack.y)>PICKUP_RANGE)return socket.emit('sweep-error','rack');
       if(p.bowUntil>now()||p.sweepUntil>now()||p.action!=='stand')return socket.emit('sweep-error','busy');
       p.hasBroom=input.take;io.to('temple').emit('broom-changed',{id:p.id,hasBroom:p.hasBroom});
+      // Hands are full with one tool at a time.
+      if(p.hasBroom&&p.hasStunGun){p.hasStunGun=false;io.to('temple').emit('stungun-changed',{id:p.id,hasStunGun:false});}
+    });
+    socket.on('stungun',input=>{
+      const p=players.get(socket.id);if(!p)return;
+      if(typeof input?.take!=='boolean')return;
+      if(p.bowUntil>now()||p.sweepUntil>now()||p.downUntil>now()||p.action!=='stand')return socket.emit('zap-error','busy');
+      p.hasStunGun=input.take;io.to('temple').emit('stungun-changed',{id:p.id,hasStunGun:p.hasStunGun});
+      if(p.hasStunGun&&p.hasBroom){p.hasBroom=false;io.to('temple').emit('broom-changed',{id:p.id,hasBroom:false});}
+    });
+    socket.on('zap',input=>{
+      const p=players.get(socket.id);if(!p)return;
+      const time=now(),fail=code=>socket.emit('zap-error',code);
+      if(!p.hasStunGun)return fail('gun');
+      if(p.action!=='stand'||p.bowUntil>time||p.sweepUntil>time||p.downUntil>time)return fail('busy');
+      if(time-p.lastZap<ZAP_COOLDOWN)return fail('cooldown');
+      const target=typeof input?.targetId==='string'?players.get(input.targetId):null;
+      if(!target||target.id===p.id)return fail('far');
+      if(target.downUntil+KNOCKDOWN_GRACE>time)return fail('down');
+      const dx=target.x-p.x,dy=target.y-p.y;
+      if(Math.hypot(dx,dy)>ZAP_RANGE)return fail('far');
+      for(let i=0;i<=10;i++){
+        const t=i/10,x=p.x+dx*t,y=p.y+dy*t;
+        if(!validPosition(x,y)||Math.abs(groundHeight(x,y)-groundHeight(p.x,p.y))>.55)return fail('far');
+      }
+      p.lastZap=time;p.blessings-=ZAP_COST;
+      const heading=Math.atan2(dx,dy);
+      // Anyone not settled on a bench drops: no moving, acting, zapping or swinging until they are up again.
+      const knockdown=target.sofaSeatId?0:ZAP_DURATION;
+      if(knockdown){target.downUntil=time+knockdown;target.bowUntil=Math.max(target.bowUntil,target.downUntil);target.action='stand';dirty=true;}
+      io.to('temple').emit('zap-hit',{id:p.id,targetId:target.id,blessings:p.blessings,heading,knockdown,shock:ZAP_DURATION});
     });
     socket.on('sweep',input=>{
       const p=players.get(socket.id);if(!p)return;

@@ -3,6 +3,36 @@ import {ENTRANCE} from './entrance-layout.mjs';
 import {buildRoofFrame} from './roof-frame.mjs';
 import {addNightLight,addLightPool} from './night-lights.mjs';
 
+// Gold lettering on dark lacquered wood, painted once into a texture.
+function signTexture(text){
+  const canvas=document.createElement('canvas');canvas.width=2048;canvas.height=400;
+  const g=canvas.getContext('2d');
+  g.fillStyle='#4a2f1f';g.fillRect(0,0,2048,400);
+  const grain=g.createLinearGradient(0,0,0,400);grain.addColorStop(0,'#ffffff14');grain.addColorStop(.5,'#00000012');grain.addColorStop(1,'#ffffff0d');g.fillStyle=grain;g.fillRect(0,0,2048,400);
+  g.strokeStyle='#c7a565';g.lineWidth=10;g.strokeRect(28,28,1992,344);g.lineWidth=3;g.strokeRect(46,46,1956,308);
+  g.textAlign='center';g.textBaseline='middle';
+  let size=230;g.font=`700 ${size}px "Times New Roman",Georgia,serif`;
+  while(g.measureText(text).width>1820&&size>60){size-=6;g.font=`700 ${size}px "Times New Roman",Georgia,serif`;}
+  g.shadowColor='#00000099';g.shadowBlur=10;g.shadowOffsetY=6;g.fillStyle='#e8c46a';g.fillText(text,1024,212);
+  const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;texture.anisotropy=8;return texture;
+}
+export const GATE_SIGN_TEXT='KHU TỰ TRỊ PHÚ GIÁO';
+function buildGateSign(root,wood,gold){
+  const sign=new THREE.Group();sign.name='phu-giao-sign';root.add(sign);
+  const width=5.1,height=1.0,y=7.2,z=.68;
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(width+.16,height+.16,.12),new THREE.MeshStandardMaterial({color:wood,roughness:.8}));
+  frame.position.set(0,y,z);frame.castShadow=true;sign.add(frame);
+  if(typeof document!=='undefined'){
+    const face=new THREE.Mesh(new THREE.PlaneGeometry(width,height),new THREE.MeshStandardMaterial({map:signTexture(GATE_SIGN_TEXT),roughness:.7}));
+    face.position.set(0,y,z+.062);face.name='phu-giao-sign-face';sign.add(face);
+  }
+  // Two gilded hangers carry the board from the lintel.
+  for(const x of [-width/2+.35,width/2-.35]){
+    const hanger=new THREE.Mesh(new THREE.CylinderGeometry(.03,.03,.4,6),new THREE.MeshStandardMaterial({color:gold,roughness:.5}));
+    hanger.position.set(x,y+height/2+.2,z);sign.add(hanger);
+  }
+}
+
 export function buildEntranceGate(parent,{roof}){
   const root=new THREE.Group();root.name='tam-quan-entrance';root.position.z=ENTRANCE.z;parent.add(root);
   const materials=new Map(),cube=new THREE.BoxGeometry(1,1,1);
@@ -40,6 +70,7 @@ export function buildEntranceGate(parent,{roof}){
     box(root,0,7.92,z,12.9,.34,.28,wood);
     box(root,0,8.13,z,13.2,.08,.34,gold);
   }
+  buildGateSign(root,wood,gold);
   canopy(0,16.7,6.2,8.15,2.15,[{x:-6,z:0},{x:6,z:0}]);
   const crown=new THREE.Group();crown.name='open-lotus-gate-crown';root.add(crown);
   box(crown,0,10.5,0,7.05,.22,1.9,stone);

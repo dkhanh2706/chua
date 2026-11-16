@@ -12,12 +12,14 @@
   const HIT_RANGE=40,HIT_DURATION=760,HIT_CONTACT=360,HIT_COOLDOWN=1400;
   // A struck visitor lies on the ground this long, then cannot be hit again for a moment.
   const KNOCKDOWN_DURATION=1800,KNOCKDOWN_GRACE=500;
+  // The stun gun reaches as far as the broom. A zapped visitor is out for 2 s, fall and recovery included; the shooter pays 2 blessings.
+  const ZAP_RANGE=HIT_RANGE,ZAP_COOLDOWN=HIT_COOLDOWN,ZAP_DURATION=2000,ZAP_COST=2;
   function nearestRack(player){return BROOM_RACKS.find(r=>Math.hypot(player.x-r.x,player.y-r.y)<=PICKUP_RANGE)||null;}
   function nearestLeaves(player,patches,time){
     let nearest=null,distance=SWEEP_RANGE;
     for(const patch of patches){const d=Math.hypot(player.x-patch.x,player.y-patch.y);if(patch.readyAt<=time&&d<=distance){nearest=patch;distance=d;}}
     return nearest;
   }
-  const api={BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN,LEAF_FALL_DURATION,HIT_RANGE,HIT_DURATION,HIT_CONTACT,HIT_COOLDOWN,KNOCKDOWN_DURATION,KNOCKDOWN_GRACE,nearestRack,nearestLeaves};
+  const api={BROOM_RACKS,LEAF_PATCHES,PICKUP_RANGE,SWEEP_RANGE,SWEEP_DURATION,LEAF_RESPAWN,LEAF_FALL_DURATION,HIT_RANGE,HIT_DURATION,HIT_CONTACT,HIT_COOLDOWN,KNOCKDOWN_DURATION,KNOCKDOWN_GRACE,ZAP_RANGE,ZAP_COOLDOWN,ZAP_DURATION,ZAP_COST,nearestRack,nearestLeaves};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.TempleSweeping=api;
 })(typeof window!=='undefined'?window:globalThis);

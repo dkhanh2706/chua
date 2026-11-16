@@ -16,3 +16,8 @@
 body.playing.night-scene .topbar{background:linear-gradient(#dbe5f0cf,#dbe5f040,transparent)}
 @media(max-width:800px),(pointer:coarse){body.playing .time-of-day{display:none}body.playing.settings-open .time-of-day{display:block;right:15px;bottom:calc(246px + env(safe-area-inset-bottom,0px));width:196px;min-height:46px;font-size:12px}}
 @media(max-height:550px) and (pointer:coarse){body.playing.settings-open .time-of-day{right:221px;bottom:120px;width:150px;min-height:46px}}
+
+.stungun-toggle{position:absolute;z-index:3;top:290px;left:30px;display:flex;align-items:center;justify-content:center;gap:10px;min-width:160px;min-height:46px;padding:9px 16px;border:1px solid #ffffffb3;border-radius:12px;background:#faf8eee8;backdrop-filter:blur(12px);color:#2f5f86;font:inherit;font-size:14px;cursor:pointer;box-shadow:0 6px 24px #2637171f}
+.stungun-toggle>span:first-child{font-size:20px;color:#d9a400}.stungun-toggle[aria-pressed="true"]{background:#e3f3ff;border-color:#59a9de;color:#14507c}.stungun-toggle:disabled{opacity:.6;cursor:default}
+.yard-tools #zap-hit{background:#dff0fb;border-color:#9fcbe8;color:#14507c}
+body.playing:has(#canvas[data-watching-fireworks="true"]) .stungun-toggle{visibility:hidden}
